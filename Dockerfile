@@ -1,14 +1,18 @@
 # ---------- Install ----------
 FROM node:24-alpine AS install
 WORKDIR /app
-RUN corepack enable
+RUN corepack enable \
+ && corepack prepare pnpm@9.0.0 --activate
+ENV PNPM_FETCH_RETRIES=5 \
+    PNPM_FETCH_RETRY_MINTIMEOUT=10000 \
+    PNPM_FETCH_RETRY_MAXTIMEOUT=120000 \
+    PNPM_FETCH_TIMEOUT=300000
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --prefer-offline
 
 # ---------- Compile ----------
 FROM node:24-alpine AS compile
 WORKDIR /app
-RUN corepack enable
 COPY --from=install /app/node_modules ./node_modules
 COPY . .
 RUN pnpm build

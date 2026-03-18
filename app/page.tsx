@@ -432,7 +432,7 @@ export default function DashboardPage() {
               <table className="w-full text-sm">
                 <thead className="bg-app-surface text-left text-text-muted uppercase text-xs tracking-wider">
                   <tr>
-                    <th className="px-4 py-3">Project</th>
+                    <th className="px-4 py-3">Test Run</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3 text-right">HTTP Requests</th>
                     <th className="px-4 py-3 text-right">P95</th>

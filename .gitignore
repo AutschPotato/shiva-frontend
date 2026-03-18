@@ -1,5 +1,6 @@
 .next/
 node_modules/
+package-lock.json
 artifacts/test-results/
 artifacts/playwright-report/
 artifacts/blob-report/

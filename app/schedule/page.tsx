@@ -13,7 +13,7 @@ import { motion } from "framer-motion"
 import { staggerContainer, revealItem } from "@/lib/motion-variants"
 import {
   Plus, Calendar as CalendarIcon, List, ChevronLeft, ChevronRight,
-  Pause, Play, Trash2, Clock, RefreshCw, AlertTriangle,
+  Pause, Play, Trash2, Clock, RefreshCw, AlertTriangle, Search,
 } from "lucide-react"
 
 type ViewMode = "timeline" | "list"
@@ -25,6 +25,7 @@ export default function SchedulePage() {
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<ViewMode>("timeline")
+  const [search, setSearch] = useState("")
   const [weekStart, setWeekStart] = useState(() => {
     const now = new Date()
     const day = now.getDay()
@@ -83,6 +84,41 @@ export default function SchedulePage() {
 
   const canManage = (s: ScheduledTest) =>
     user?.role === "admin" || String(s.user_id) === user?.id
+
+  const recurrenceLabel = (type: string) => {
+    if (type === "once") return "once"
+    return type
+  }
+
+  const matchesSearch = (...values: Array<string | number | null | undefined>) => {
+    const query = search.trim().toLowerCase()
+    if (!query) return true
+    return values.some((value) => String(value ?? "").toLowerCase().includes(query))
+  }
+
+  const filteredSchedules = useMemo(
+    () =>
+      schedules.filter((schedule) =>
+        matchesSearch(
+          schedule.name,
+          schedule.project_name,
+          schedule.username,
+          schedule.timezone,
+          schedule.status,
+          schedule.paused ? "paused" : "",
+          recurrenceLabel(schedule.recurrence_type),
+        ),
+      ),
+    [schedules, search],
+  )
+
+  const filteredEvents = useMemo(
+    () =>
+      events.filter((event) =>
+        matchesSearch(event.name, event.username, event.status),
+      ),
+    [events, search],
+  )
 
   const handleDelete = async (id: string) => {
     if (!token) return
@@ -178,9 +214,12 @@ export default function SchedulePage() {
   return (
     <motion.div className="space-y-6" variants={staggerContainer} initial="initial" animate="enter">
       {/* Header */}
-      <motion.div variants={revealItem} className="flex justify-end">
-        <div className="flex items-center gap-2">
-          {/* View toggle */}
+      <motion.div variants={revealItem} className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-text-primary section-heading">Schedules</h1>
+          <p className="text-text-muted text-sm mt-1">Plan, search, and manage upcoming test executions.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex rounded-lg border border-app-border overflow-hidden">
             <button
               onClick={() => setView("timeline")}
@@ -201,6 +240,26 @@ export default function SchedulePage() {
           >
             <Plus size={16} /> New Schedule
           </Link>
+        </div>
+      </motion.div>
+
+      <motion.div variants={revealItem} className="app-card rounded-xl border border-app-border px-4 py-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <label className="relative block w-full lg:max-w-md">
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by schedule, test run, owner, timezone, or status"
+              className="w-full rounded-lg border border-app-border bg-[var(--color-card-bg)] py-2.5 pl-10 pr-3 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/30"
+            />
+          </label>
+          <div className="text-sm text-text-muted">
+            {view === "list"
+              ? `${filteredSchedules.length} schedule${filteredSchedules.length === 1 ? "" : "s"} visible`
+              : `${filteredEvents.length} timeline event${filteredEvents.length === 1 ? "" : "s"} visible`}
+          </div>
         </div>
       </motion.div>
 
@@ -255,7 +314,7 @@ export default function SchedulePage() {
                 ))}
 
                 {/* Event blocks */}
-                {events.map((ev, idx) => {
+                {filteredEvents.map((ev, idx) => {
                   const start = new Date(ev.start)
                   const end = new Date(ev.end)
                   const dayIdx = Math.floor((start.getTime() - weekStart.getTime()) / (24 * 60 * 60 * 1000))
@@ -280,6 +339,12 @@ export default function SchedulePage() {
                     </Link>
                   )
                 })}
+
+                {!loading && filteredEvents.length === 0 && (
+                  <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-text-muted">
+                    {search.trim() ? "No scheduled events match the current search." : "No scheduled events in this week."}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -291,11 +356,13 @@ export default function SchedulePage() {
         <motion.div variants={revealItem} className="app-card rounded-xl border border-app-border overflow-hidden">
           {loading ? (
             <div className="p-8 text-center text-text-muted">Loading...</div>
-          ) : schedules.length === 0 ? (
+          ) : filteredSchedules.length === 0 ? (
             <div className="p-8 text-center text-text-muted">
               <CalendarIcon size={32} className="mx-auto mb-2 opacity-40" />
-              <p>No scheduled tests yet.</p>
-              <Link href="/schedule/new" className="text-accent-primary hover:underline text-sm mt-2 inline-block">Create your first schedule</Link>
+              <p>{search.trim() ? "No schedules match the current search." : "No scheduled tests yet."}</p>
+              {!search.trim() && (
+                <Link href="/schedule/new" className="text-accent-primary hover:underline text-sm mt-2 inline-block">Create your first schedule</Link>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -312,13 +379,13 @@ export default function SchedulePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {schedules.map(s => (
+                  {filteredSchedules.map(s => (
                     <tr key={s.id} className="border-b border-app-border/50 hover:bg-app-surface-alt/50 transition">
                       <td className="px-4 py-3">
                         <Link href={`/schedule/${s.id}`} className="font-medium text-text-primary hover:text-accent-primary transition">
                           {s.name}
                         </Link>
-                        <div className="text-xs text-text-muted">{s.project_name}</div>
+                        <div className="text-xs text-text-muted">Test run: {s.project_name}</div>
                       </td>
                       <td className="px-4 py-3 text-text-muted">
                         <div className="flex items-center gap-1.5">

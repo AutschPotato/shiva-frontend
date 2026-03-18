@@ -131,7 +131,7 @@ export default function ResultPage() {
       <motion.div variants={revealItem} className="md:static sticky top-0 z-10 py-3" style={{ background: "var(--color-card-bg)", backdropFilter: "blur(4px)", borderTop: "1px solid var(--color-card-border-top)" }}>
         <input
           type="text"
-          placeholder="Search by Run ID or Project Name"
+          placeholder="Search by Run ID or Test Run Name"
           value={search}
           onChange={(e) => {
             setSearch(e.target.value)
@@ -147,7 +147,7 @@ export default function ResultPage() {
           <thead className="bg-app-surface border-b border-app-border sticky top-0">
             <tr className="text-left text-text-muted uppercase text-xs tracking-wider">
               <th className="px-4 py-4">Run ID</th>
-              <th className="px-4 py-4">Project</th>
+              <th className="px-4 py-4">Test Run</th>
               <th className="px-4 py-4">Status</th>
               <th className="px-4 py-4 text-right">Requests</th>
               <th className="px-4 py-4 text-right">Duration</th>

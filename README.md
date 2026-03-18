@@ -13,11 +13,40 @@ Runtime requirements:
 - Node.js 24.x (see `package.json` engines)
 - pnpm 9.x
 
+## Quick Start For Windows
+
+Prerequisites:
+
+- Docker Desktop
+- A running Shiva Platform backend on `http://localhost:8080`
+
+From the repo root in PowerShell:
+
+```powershell
+docker compose -f .\docker-compose.frontend.yml up -d --build
+```
+
+Open:
+
+- Frontend: `http://localhost:3001`
+
+Default local login:
+
+- `admin / changeme`
+
+Stop the frontend again:
+
+```powershell
+docker compose -f .\docker-compose.frontend.yml down
+```
+
+If the backend is not reachable on `http://localhost:8080`, adjust `CONTROLLER_URL` in [docker-compose.frontend.yml](./docker-compose.frontend.yml) or create a local `.env` from [.env.example](./.env.example).
+
 ## Package Manager Policy
 
 - The canonical package manager for this frontend is `pnpm`.
 - `pnpm-lock.yaml` is the intended source of truth.
-- `package-lock.json` currently still exists as a legacy artifact and should not be treated as the primary lockfile.
+- `package-lock.json` should not exist in this repo and should not be recreated.
 
 ## Authentication
 
@@ -104,11 +133,19 @@ The prepared CI workflow for the future frontend repo is:
 
 ## Docker
 
-Build:
+Fast local start:
+
+```powershell
+docker compose -f .\docker-compose.frontend.yml up -d --build
+```
+
+Manual image build:
 
 ```
 docker build -t shiva-frontend .
 ```
+
+The Docker build intentionally uses `pnpm` and `pnpm-lock.yaml` as the single dependency source of truth.
 
 Run:
 

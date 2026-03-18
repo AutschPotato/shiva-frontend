@@ -420,7 +420,7 @@ function NewSchedulePage() {
   const handleSubmit = async () => {
     if (!token) return
     if (!name.trim()) { setToast({ type: "error", message: "Name is required" }); return }
-    if (!projectName.trim()) { setToast({ type: "error", message: "Project name is required" }); return }
+    if (!projectName.trim()) { setToast({ type: "error", message: "Test run name is required" }); return }
     if (!scheduledAt) { setToast({ type: "error", message: "Scheduled time is required" }); return }
     if (mode === "upload" && !scriptContent.trim()) { setToast({ type: "error", message: "A k6 script is required — upload a file or load a template" }); return }
     if (mode === "builder" && !url.trim()) { setToast({ type: "error", message: "Target URL is required for builder schedules" }); return }
@@ -504,8 +504,8 @@ function NewSchedulePage() {
             <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Nightly Load Test" className={inputClass} />
           </div>
           <div>
-            <label className={labelClass}>Project Name</label>
-            <input type="text" value={projectName} onChange={e => setProjectName(e.target.value)} placeholder="api-v2" className={inputClass} />
+            <label className={labelClass}>Test Run Name</label>
+            <input type="text" value={projectName} onChange={e => setProjectName(e.target.value)} placeholder="Nightly checkout flow" className={inputClass} />
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">

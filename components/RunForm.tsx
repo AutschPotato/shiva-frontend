@@ -592,7 +592,7 @@ function buildValidationErrors(args: {
   const nextErrors: Record<string, string> = {}
 
   if (!args.projectName.trim()) {
-    nextErrors.projectName = "Project name is required"
+    nextErrors.projectName = "Test run name is required"
   }
 
   if (args.mode === "builder") {
@@ -1526,15 +1526,15 @@ export default function RunForm() {
         </button>
       </div>
 
-      {/* PROJECT NAME */}
+      {/* TEST RUN NAME */}
       <div>
         <label className="block text-sm font-medium mb-2 text-text-primary">
-          Project Name
+          Test Run Name
         </label>
         <input
           value={projectName}
           onChange={(e) => setProjectName(e.target.value)}
-          placeholder="My Load Test"
+          placeholder="Checkout API smoke test"
           className={`w-full ${errors.projectName ? "border-red-500" : ""}`}
         />
         {errors.projectName && (
