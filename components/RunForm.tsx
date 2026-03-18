@@ -259,6 +259,16 @@ function buildMissingBuilderRuntimeItems(args: {
   return missing
 }
 
+function hasNonEnvConfigKeys(configContent: string) {
+  if (!configContent.trim()) return false
+  try {
+    const parsed = JSON.parse(configContent)
+    return Object.keys(parsed || {}).some((key) => key !== "env")
+  } catch {
+    return false
+  }
+}
+
 function buildConfigContent(
   args: {
     mode: "builder" | "upload"
@@ -274,7 +284,9 @@ function buildConfigContent(
   },
 ) {
   const activeEnvVars = args.envVars.filter((ev) => ev.key.trim() && ev.value.trim())
-  const effectiveConfig = args.configPreview || (args.mode === "builder" ? args.builderConfigPreview : "")
+  const effectiveConfig = args.mode === "builder"
+    ? (hasNonEnvConfigKeys(args.configPreview) ? args.configPreview : args.builderConfigPreview)
+    : args.configPreview
   const generatedEnvVars = args.mode === "builder"
     ? buildBuilderEnvContract({
         url: args.url,

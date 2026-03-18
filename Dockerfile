@@ -13,6 +13,8 @@ RUN pnpm install --frozen-lockfile --prefer-offline
 # ---------- Compile ----------
 FROM node:24-alpine AS compile
 WORKDIR /app
+RUN corepack enable \
+ && corepack prepare pnpm@9.0.0 --activate
 COPY --from=install /app/node_modules ./node_modules
 COPY . .
 RUN pnpm build
