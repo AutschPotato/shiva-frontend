@@ -1,0 +1,40 @@
+{
+  "name": "shiva",
+  "private": true,
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start -H 0.0.0.0 -p 80",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "validate:separate-deployment": "node scripts/validate-separate-deployment.mjs",
+    "validate:separate-deployment:writes": "node scripts/validate-separate-deployment-write-flows.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report",
+    "codegen:e2e": "playwright codegen --target javascript --output tests/e2e/generated/codegen.spec.js http://localhost:3000/login",
+    "playwright:install": "playwright install chromium"
+  },
+  "dependencies": {
+    "framer-motion": "^12.29.0",
+    "lucide-react": "^0.563.0",
+    "next": "16.1.4",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "recharts": "^3.7.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@tailwindcss/postcss": "^4.1.18",
+    "@types/node": "25.0.10",
+    "@types/react": "19.2.9",
+    "eslint": "^9.39.2",
+    "eslint-config-next": "^16.1.6",
+    "tailwindcss": "^4.1.18",
+    "typescript": "5.9.3"
+  }
+}

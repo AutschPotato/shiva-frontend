@@ -1,0 +1,12 @@
+name: shiva-frontend
+
+services:
+  frontend:
+    build: .
+    ports:
+      - "3001:3000"
+    environment:
+      CONTROLLER_URL: "http://host.docker.internal:8080"
+      CONTROLLER_API_KEY: ""
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

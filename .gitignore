@@ -1,0 +1,12 @@
+.next/
+node_modules/
+artifacts/test-results/
+artifacts/playwright-report/
+artifacts/blob-report/
+playwright/.cache/
+playwright/.auth/
+tsconfig.tsbuildinfo
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
