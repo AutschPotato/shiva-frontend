@@ -51,6 +51,19 @@ async function waitForRunProgress(page, timeoutMs = 15000) {
   ])
 }
 
+async function clickRunLoadTest(page) {
+  const dialogPromise = page
+    .waitForEvent("dialog", { timeout: 1500 })
+    .then(async (dialog) => {
+      await dialog.accept()
+      return true
+    })
+    .catch(() => false)
+
+  await page.getByRole("button", { name: "Run Load Test" }).click()
+  await dialogPromise
+}
+
 async function openCompletedResult(page, projectName, timeoutMs = 240000) {
   const start = Date.now()
 
@@ -106,7 +119,7 @@ async function startAuthRun(page, projectName, tokenUrl) {
   await login(page)
   await openBuilderRun(page, projectName)
   await page.getByRole("textbox", { name: "http://target-lb:8090/api/" }).fill(tokenUrl)
-  await page.getByRole("button", { name: "Run Load Test" }).click()
+  await clickRunLoadTest(page)
   await waitForRunProgress(page)
   try {
     await waitForResultPage(page, 30000)
@@ -141,7 +154,7 @@ async function startNativeArrivalRateRun(page, projectName, options = {}) {
   await fillInputByLabel(page, "Duration", settings.duration)
   await fillInputByLabel(page, "Pre-allocated VUs", settings.preAllocatedVUs)
   await fillInputByLabel(page, "Max VUs", settings.maxVUs)
-  await page.getByRole("button", { name: "Run Load Test" }).click()
+  await clickRunLoadTest(page)
   await waitForRunProgress(page)
   await openCompletedResult(page, projectName, 240000)
   await waitForResultPage(page, 60000)
