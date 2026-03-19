@@ -1,4 +1,5 @@
 # Shiva Frontend
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/AutschPotato/shiva-frontend)
 
 Distributed load testing dashboard built with:
 
