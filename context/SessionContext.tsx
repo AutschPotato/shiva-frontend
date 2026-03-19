@@ -74,8 +74,23 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const persisted = loadPersistedSession()
-    applySessionState(persisted, setUser, setToken)
-    setInitialized(true)
+    let cancelled = false
+
+    const applyPersisted = () => {
+      if (cancelled) return
+      applySessionState(persisted, setUser, setToken)
+      setInitialized(true)
+    }
+
+    if (typeof queueMicrotask === "function") {
+      queueMicrotask(applyPersisted)
+    } else {
+      setTimeout(applyPersisted, 0)
+    }
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const signIn = useCallback(async (credentials: Credentials) => {
@@ -127,3 +142,4 @@ export function useSession(): SessionContextValue {
   }
   return ctx
 }
+

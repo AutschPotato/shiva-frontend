@@ -118,6 +118,11 @@ Files:
 - tests: [tests/e2e](./tests/e2e)
 - artifacts: [artifacts](./artifacts)
 
+## Working Model
+
+- This repository is the frontend single source of truth for ongoing development.
+- Do not continue feature work in the legacy monorepo or in any exported staging directory.
+- Use short-lived feature branches such as `feature/...`, `bugfix/...`, or `chore/...`; keep `main` releasable.
 ## CI / Ownership
 
 This frontend side owns:
@@ -236,3 +241,4 @@ It owns:
 - Next proxy/BFF route under `app/api/backend`
 - Playwright E2E and codegen setup
 - frontend-local build and artifact configuration
+

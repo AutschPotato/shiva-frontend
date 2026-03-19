@@ -28,7 +28,22 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("light")
 
   useEffect(() => {
-    setThemeState(getStoredTheme())
+    let cancelled = false
+
+    const applyStoredTheme = () => {
+      if (cancelled) return
+      setThemeState(getStoredTheme())
+    }
+
+    if (typeof queueMicrotask === "function") {
+      queueMicrotask(applyStoredTheme)
+    } else {
+      setTimeout(applyStoredTheme, 0)
+    }
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
@@ -55,3 +70,4 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 export function useTheme() {
   return useContext(ThemeContext)
 }
+

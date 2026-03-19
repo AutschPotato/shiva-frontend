@@ -35,7 +35,7 @@ test("result view shows auth abort diagnostics for auth timeout", async ({ page 
     "http://target-lb:8090/api/auth/token/timeout",
   )
 
-  await expect(page.getByText("Authentication")).toBeVisible()
+  await expect(page.getByText("Authentication", { exact: true }).first()).toBeVisible()
   await expect(page.getByText("Authentication aborted the test run")).toBeVisible()
 
   const tokenRequests = parseLocalizedNumber(await getStatValue(page, "Token Requests"))
@@ -45,8 +45,9 @@ test("result view shows auth abort diagnostics for auth timeout", async ({ page 
 
   expect(tokenRequests).toBeGreaterThan(0)
   expect(businessRequests).toBe(0)
-  expect(bodyText).toMatch(/Abort Cause/i)
-  expect(bodyText).toMatch(/Abort Reason/i)
+  expect(bodyText).toMatch(/Cause:/i)
+  expect(bodyText).toMatch(/HTTP Status Codes:/i)
+  expect(bodyText).toMatch(/Retryable:/i)
 
   const has504 = /\b504\b/.test(responseCodes) || /\b504\b/.test(bodyText)
   const hasTimeoutText = /timeout|timed out/i.test(responseCodes) || /timeout|timed out/i.test(bodyText)
