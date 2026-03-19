@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useSession } from "@/context/SessionContext"
 import {
@@ -114,7 +114,7 @@ export default function TemplatesPage() {
     if (ready && !user) router.replace("/login")
   }, [ready, user, router])
 
-  const loadTemplates = async () => {
+  const loadTemplates = useCallback(async () => {
     if (!token) return
     setLoading(true)
     try {
@@ -122,13 +122,17 @@ export default function TemplatesPage() {
       setTemplates(res.templates ?? [])
     } catch {
       setToast({ type: "error", message: "Failed to load templates" })
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
-  }
-
-  useEffect(() => {
-    if (token) loadTemplates()
   }, [token])
+  useEffect(() => {
+    if (!token) return
+    const timer = setTimeout(() => {
+      void loadTemplates()
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [token, loadTemplates])
 
   const handleDelete = async (id: string) => {
     if (!token) return
@@ -912,3 +916,5 @@ function Toast({ type, message, onClose }: { type: "success" | "error"; message:
     </div>
   )
 }
+
+

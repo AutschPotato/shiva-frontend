@@ -230,24 +230,29 @@ function NewSchedulePage() {
     const raw = localStorage.getItem("k6-schedule-test")
     if (!raw) return
     localStorage.removeItem("k6-schedule-test")
-    try {
-      const clone = JSON.parse(raw)
-      const configHydration = hydrateBuilderRuntimeFromConfig(clone.config_content)
-      if (clone.mode === "builder" || clone.url || clone.stages) setMode("builder")
-      if (clone.url || configHydration.url) setUrl(clone.url || configHydration.url)
-      if (clone.executor) setExecutor(clone.executor)
-      if (clone.stages && clone.stages.length > 0) setStages(clone.stages)
-      if (clone.http_method || configHydration.httpMethod) setHttpMethod(clone.http_method || configHydration.httpMethod)
-      if (clone.content_type || configHydration.contentType) setContentType(clone.content_type || configHydration.contentType)
-      if (clone.payload_json || configHydration.payloadJson) setPayloadJson(clone.payload_json || configHydration.payloadJson)
-      if (clone.payload_target_kib || configHydration.payloadTargetKiB) setPayloadTargetKiB(clone.payload_target_kib || configHydration.payloadTargetKiB)
-      if (clone.auth || configHydration.auth.auth_enabled) setAuthConfig(mergeAuthInputs(clone.auth ? hydrateAuthInput(clone.auth) : undefined, configHydration.auth))
-      if (clone.script_content) setScriptContent(clone.script_content)
-      if (clone.config_content) setConfigContent(clone.config_content)
-      if (clone.project_name) setProjectName(clone.project_name)
-      if (clone.name) setName(clone.name)
-      setToast({ type: "success", message: "Test configuration loaded" })
-    } catch { /* ignore */ }
+    const timer = setTimeout(() => {
+      try {
+        const clone = JSON.parse(raw)
+        const configHydration = hydrateBuilderRuntimeFromConfig(clone.config_content)
+        if (clone.mode === "builder" || clone.url || clone.stages) setMode("builder")
+        if (clone.url || configHydration.url) setUrl(clone.url || configHydration.url)
+        if (clone.executor) setExecutor(clone.executor)
+        if (clone.stages && clone.stages.length > 0) setStages(clone.stages)
+        if (clone.http_method || configHydration.httpMethod) setHttpMethod(clone.http_method || configHydration.httpMethod)
+        if (clone.content_type || configHydration.contentType) setContentType(clone.content_type || configHydration.contentType)
+        if (clone.payload_json || configHydration.payloadJson) setPayloadJson(clone.payload_json || configHydration.payloadJson)
+        if (clone.payload_target_kib || configHydration.payloadTargetKiB) setPayloadTargetKiB(clone.payload_target_kib || configHydration.payloadTargetKiB)
+        if (clone.auth || configHydration.auth.auth_enabled) setAuthConfig(mergeAuthInputs(clone.auth ? hydrateAuthInput(clone.auth) : undefined, configHydration.auth))
+        if (clone.script_content) setScriptContent(clone.script_content)
+        if (clone.config_content) setConfigContent(clone.config_content)
+        if (clone.project_name) setProjectName(clone.project_name)
+        if (clone.name) setName(clone.name)
+        setToast({ type: "success", message: "Test configuration loaded" })
+      } catch {
+        // ignore malformed local seed data
+      }
+    }, 0)
+    return () => clearTimeout(timer)
   }, [searchParams])
 
   useEffect(() => {
@@ -300,6 +305,11 @@ function NewSchedulePage() {
     return stages.reduce((acc, stage) => acc + parseDur(stage.duration || ""), 0)
   }, [mode, stages])
 
+  const effectiveDuration = useMemo(() => {
+    if (estimatedDurationOverride > 0) return estimatedDurationOverride * 60
+    return Math.max(builderDuration, autoDuration, scriptDuration)
+  }, [estimatedDurationOverride, builderDuration, autoDuration, scriptDuration])
+
   const payloadError = useMemo(() => {
     if (mode !== "builder" || !methodAllowsPayload(httpMethod) || !payloadJson.trim()) return null
     try {
@@ -314,15 +324,12 @@ function NewSchedulePage() {
     return validateAuthInput(authConfig, { requireSecret: true })
   }, [authConfig, mode])
 
-  const effectiveDuration = estimatedDurationOverride > 0
-    ? estimatedDurationOverride
-    : (mode === "builder" ? (builderDuration || autoDuration || scriptDuration) : (autoDuration || scriptDuration))
-
-  // Check conflict when date changes
   useEffect(() => {
     if (!scheduledAt || !token || effectiveDuration <= 0) {
-      setConflict(null)
-      return
+      const resetTimer = setTimeout(() => {
+        setConflict(null)
+      }, 0)
+      return () => clearTimeout(resetTimer)
     }
     const iso = new Date(scheduledAt).toISOString()
     const timer = setTimeout(async () => {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useSession } from "@/context/SessionContext"
@@ -47,7 +47,7 @@ export default function SchedulePage() {
     return end
   }, [weekStart])
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!token) return
     setLoading(true)
     try {
@@ -59,13 +59,17 @@ export default function SchedulePage() {
       setEvents(calRes.events ?? [])
     } catch {
       setToast({ type: "error", message: "Failed to load schedules" })
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
-  }
-
+  }, [token, weekStart, weekEnd])
   useEffect(() => {
-    if (token) loadData()
-  }, [token, weekStart]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (!token) return
+    const timer = setTimeout(() => {
+      void loadData()
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [token, loadData])
 
   useEffect(() => {
     if (toast) {
@@ -89,37 +93,25 @@ export default function SchedulePage() {
     if (type === "once") return "once"
     return type
   }
-
-  const matchesSearch = (...values: Array<string | number | null | undefined>) => {
+  const matchesSearch = useCallback((...values: Array<string | number | null | undefined>) => {
     const query = search.trim().toLowerCase()
     if (!query) return true
     return values.some((value) => String(value ?? "").toLowerCase().includes(query))
-  }
-
-  const filteredSchedules = useMemo(
-    () =>
-      schedules.filter((schedule) =>
-        matchesSearch(
-          schedule.name,
-          schedule.project_name,
-          schedule.username,
-          schedule.timezone,
-          schedule.status,
-          schedule.paused ? "paused" : "",
-          recurrenceLabel(schedule.recurrence_type),
-        ),
-      ),
-    [schedules, search],
+  }, [search])
+  const filteredSchedules = schedules.filter((schedule) =>
+    matchesSearch(
+      schedule.name,
+      schedule.project_name,
+      schedule.username,
+      schedule.timezone,
+      schedule.status,
+      schedule.paused ? "paused" : "",
+      recurrenceLabel(schedule.recurrence_type),
+    ),
   )
-
-  const filteredEvents = useMemo(
-    () =>
-      events.filter((event) =>
-        matchesSearch(event.name, event.username, event.status),
-      ),
-    [events, search],
+  const filteredEvents = events.filter((event) =>
+    matchesSearch(event.name, event.username, event.status),
   )
-
   const handleDelete = async (id: string) => {
     if (!token) return
     try {
@@ -450,3 +442,5 @@ export default function SchedulePage() {
     </motion.div>
   )
 }
+
+

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { useSession } from "@/context/SessionContext"
@@ -31,7 +31,7 @@ export default function ScheduleDetailPage() {
     if (ready && !user) router.replace("/login")
   }, [ready, user, router])
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!token || !id) return
     setLoading(true)
     try {
@@ -43,14 +43,17 @@ export default function ScheduleDetailPage() {
       setExecutions(e.executions ?? [])
     } catch {
       setToast({ type: "error", message: "Failed to load schedule" })
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
-  }
-
+  }, [token, id])
   useEffect(() => {
-    if (token && id) loadData()
-  }, [token, id]) // eslint-disable-line react-hooks/exhaustive-deps
-
+    if (!token || !id) return
+    const timer = setTimeout(() => {
+      void loadData()
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [token, id, loadData])
   useEffect(() => {
     if (toast) {
       const t = setTimeout(() => setToast(null), 3000)
@@ -78,13 +81,12 @@ export default function ScheduleDetailPage() {
       } else {
         await pauseSchedule(id, token)
       }
-      loadData()
+      void loadData()
       setToast({ type: "success", message: schedule.paused ? "Schedule resumed" : "Schedule paused" })
     } catch {
       setToast({ type: "error", message: "Failed to update schedule" })
     }
   }
-
   const statusBadge = (status: string, paused?: boolean) => {
     const label = paused ? "paused" : status
     const cls = paused
@@ -278,3 +280,5 @@ export default function ScheduleDetailPage() {
     </motion.div>
   )
 }
+
+

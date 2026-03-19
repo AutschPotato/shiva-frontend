@@ -5,7 +5,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
 } from "react"
@@ -67,17 +66,10 @@ function applySessionState(
 }
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<UserProfile | null>(null)
-  const [token, setToken] = useState<string | null>(null)
-  const [initialized, setInitialized] = useState(false)
+  const [user, setUser] = useState<UserProfile | null>(() => loadPersistedSession()?.user ?? null)
+  const [token, setToken] = useState<string | null>(() => loadPersistedSession()?.token ?? null)
+  const initialized = true
   const router = useRouter()
-
-  // Restore persisted session after hydration
-  useEffect(() => {
-    const cached = loadPersistedSession()
-    applySessionState(cached, setUser, setToken)
-    setInitialized(true)
-  }, [])
 
   const signIn = useCallback(async (credentials: Credentials) => {
     const response = await authenticate(credentials)

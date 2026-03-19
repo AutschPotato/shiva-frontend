@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { getResult, createTemplate, type TemplatePayload } from "@/lib/api"
 import { useSession } from "@/context/SessionContext"
@@ -850,26 +850,34 @@ export default function ResultDetail() {
   const [exportOpen, setExportOpen] = useState(false)
   const [stopping, setStopping] = useState(false)
 
-  useEffect(() => {
+  const loadResult = useCallback(async () => {
     if (!id || !token) return
     setLoading(true)
-    getResult(id, token)
-      .then((res) => setData(res as ResultData))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false))
+    try {
+      const res = await getResult(id, token)
+      setData(res as ResultData)
+    } catch {
+      setData(null)
+    } finally {
+      setLoading(false)
+    }
   }, [id, token])
-
+  useEffect(() => {
+    if (!id || !token) return
+    const timer = setTimeout(() => {
+      void loadResult()
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [id, token, loadResult])
   // Poll for updates while test is running
   useEffect(() => {
-    if (!id || !token || !data || data.status !== "running") return
-
+    if (!id || !token || data?.status !== "running") return
     const interval = setInterval(async () => {
       try {
         const res = await getResult(id, token)
         setData(res as ResultData)
       } catch { /* ignore polling errors */ }
     }, 5000)
-
     return () => clearInterval(interval)
   }, [id, token, data?.status])
 
@@ -988,7 +996,7 @@ export default function ResultDetail() {
               </p>
             )}
             <div className="flex flex-wrap gap-3 mt-3 text-xs text-text-muted">
-              <span>ID: <span className="font-mono">{data.id.slice(0, 8)}</span></span>
+              <span>Run ID: <span className="font-mono break-all">{data.id}</span></span>
               <span>Run by {data.run_by?.username ?? data.username ?? "system"}</span>
               <span>{new Date(data.created_at).toISOString().replace("T", " ").slice(0, 19)}</span>
               <StatusBadge status={data.status} />
@@ -1947,3 +1955,4 @@ function SummaryView({ content }: { content: string }) {
     </>
   )
 }
+

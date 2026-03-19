@@ -18,15 +18,18 @@ const ThemeContext = createContext<ThemeContextValue>({
 
 const STORAGE_KEY = "shiva-theme"
 
+function getStoredTheme(): Theme {
+  if (typeof window === "undefined") return "light"
+  const stored = localStorage.getItem(STORAGE_KEY) as Theme | null
+  return stored === "dark" ? "dark" : "light"
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("light")
+  const [theme, setThemeState] = useState<Theme>(() => getStoredTheme())
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY) as Theme | null
-    const resolved = stored === "dark" ? "dark" : "light"
-    setThemeState(resolved)
-    document.documentElement.classList.toggle("dark", resolved === "dark")
-  }, [])
+    document.documentElement.classList.toggle("dark", theme === "dark")
+  }, [theme])
 
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t)

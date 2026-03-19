@@ -33,7 +33,7 @@ async function waitForResultPage(page, timeoutMs = 180000) {
 }
 
 async function login(page) {
-  await page.goto("http://localhost:3000/login")
+  await page.goto("/login")
   await page.getByRole("textbox", { name: "user@example.com" }).fill("admin")
   await page.getByRole("textbox", { name: "Enter your password" }).fill("changeme")
   await page.getByRole("button", { name: "Sign In" }).click()
@@ -102,6 +102,7 @@ async function expectAuthAbort(page, expectedCodePattern) {
 }
 
 module.exports = {
+  
   expectAuthAbort,
   getStatValue,
   login,
