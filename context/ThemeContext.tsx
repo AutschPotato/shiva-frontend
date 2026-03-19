@@ -25,7 +25,11 @@ function getStoredTheme(): Theme {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => getStoredTheme())
+  const [theme, setThemeState] = useState<Theme>("light")
+
+  useEffect(() => {
+    setThemeState(getStoredTheme())
+  }, [])
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark")

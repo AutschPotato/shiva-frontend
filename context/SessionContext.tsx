@@ -5,6 +5,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from "react"
@@ -66,22 +67,30 @@ function applySessionState(
 }
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<UserProfile | null>(() => loadPersistedSession()?.user ?? null)
-  const [token, setToken] = useState<string | null>(() => loadPersistedSession()?.token ?? null)
-  const initialized = true
+  const [user, setUser] = useState<UserProfile | null>(null)
+  const [token, setToken] = useState<string | null>(null)
+  const [initialized, setInitialized] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    const persisted = loadPersistedSession()
+    applySessionState(persisted, setUser, setToken)
+    setInitialized(true)
+  }, [])
 
   const signIn = useCallback(async (credentials: Credentials) => {
     const response = await authenticate(credentials)
     const session = { user: response.user, token: response.token }
     applySessionState(session, setUser, setToken)
     persistSession(session)
+    setInitialized(true)
     return response.user
   }, [])
 
   const signOut = useCallback(() => {
     applySessionState(null, setUser, setToken)
     persistSession(null)
+    setInitialized(true)
     router.push("/login")
   }, [router])
 
