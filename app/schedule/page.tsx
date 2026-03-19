@@ -18,6 +18,94 @@ import {
 
 type ViewMode = "timeline" | "list"
 
+type DeleteDialogState = {
+  id: string
+  name: string
+  occurrence: string
+  recurrenceType: string
+}
+
+type TimelineLayout = {
+  event: CalendarEvent
+  dayIdx: number
+  laneIndex: number
+  laneCount: number
+  top: number
+  height: number
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+function buildTimelineLayouts(events: CalendarEvent[], weekStart: Date): TimelineLayout[] {
+  const grouped = new Map<number, Array<TimelineLayout & { sortKey: number; visualBottom: number }>>()
+
+  for (const event of events) {
+    const start = new Date(event.start)
+    const end = new Date(event.end)
+    const dayIdx = Math.floor((start.getTime() - weekStart.getTime()) / DAY_MS)
+    if (dayIdx < 0 || dayIdx >= 7) continue
+
+    const startMinutes = start.getHours() * 60 + start.getMinutes()
+    const durationMinutes = Math.max(15, (end.getTime() - start.getTime()) / 60000)
+    const top = (startMinutes / 60) * 24
+    const height = Math.max(16, (durationMinutes / 60) * 24)
+    const dayEvents = grouped.get(dayIdx) ?? []
+    dayEvents.push({
+      event,
+      dayIdx,
+      laneIndex: 0,
+      laneCount: 1,
+      top,
+      height,
+      sortKey: top,
+      visualBottom: top + height,
+    })
+    grouped.set(dayIdx, dayEvents)
+  }
+
+  const result: TimelineLayout[] = []
+  for (const [, dayEvents] of grouped) {
+    dayEvents.sort((a, b) => a.sortKey - b.sortKey || a.visualBottom - b.visualBottom)
+
+    let active: Array<{ visualBottom: number; laneIndex: number }> = []
+    let cluster: Array<TimelineLayout & { sortKey: number; visualBottom: number }> = []
+    let clusterLaneCount = 1
+
+    const flushCluster = () => {
+      for (const item of cluster) {
+        result.push({
+          event: item.event,
+          dayIdx: item.dayIdx,
+          laneIndex: item.laneIndex,
+          laneCount: clusterLaneCount,
+          top: item.top,
+          height: item.height,
+        })
+      }
+      cluster = []
+      clusterLaneCount = 1
+    }
+
+    for (const item of dayEvents) {
+      active = active.filter((entry) => entry.visualBottom > item.top)
+      if (active.length === 0 && cluster.length > 0) flushCluster()
+
+      const occupied = new Set(active.map((entry) => entry.laneIndex))
+      let laneIndex = 0
+      while (occupied.has(laneIndex)) laneIndex += 1
+
+      item.laneIndex = laneIndex
+      active.push({ visualBottom: item.visualBottom, laneIndex })
+      cluster.push(item)
+      clusterLaneCount = Math.max(clusterLaneCount, active.length)
+    }
+
+    if (cluster.length > 0) flushCluster()
+  }
+
+  return result
+}
+
 export default function SchedulePage() {
   const router = useRouter()
   const { user, token, initialized: ready } = useSession()
@@ -35,7 +123,7 @@ export default function SchedulePage() {
     return monday
   })
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null)
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<DeleteDialogState | null>(null)
 
   useEffect(() => {
     if (ready && !user) router.replace("/login")
@@ -112,13 +200,21 @@ export default function SchedulePage() {
   const filteredEvents = events.filter((event) =>
     matchesSearch(event.name, event.username, event.status),
   )
-  const handleDelete = async (id: string) => {
+  const timelineLayouts = useMemo(() => buildTimelineLayouts(filteredEvents, weekStart), [filteredEvents, weekStart])
+
+  const handleDelete = async (target: DeleteDialogState, scope: "single" | "future") => {
     if (!token) return
     try {
-      await deleteSchedule(id, token)
-      setSchedules(prev => prev.filter(s => s.id !== id))
+      await deleteSchedule(target.id, token, {
+        occurrence: target.occurrence,
+        scope,
+      })
       setDeleteConfirm(null)
-      setToast({ type: "success", message: "Schedule deleted" })
+      await loadData()
+      setToast({
+        type: "success",
+        message: scope === "single" ? "Selected occurrence deleted" : "Future series deleted",
+      })
     } catch {
       setToast({ type: "error", message: "Failed to delete schedule" })
     }
@@ -152,6 +248,7 @@ export default function SchedulePage() {
 
   const dayNames = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
   const hours = Array.from({ length: 24 }, (_, i) => i)
+  const dayWidthPercent = 100 / 7
 
   const statusColor = (status: string, paused: boolean) => {
     if (paused) return "bg-gray-400/80 dark:bg-gray-600/80"
@@ -305,32 +402,25 @@ export default function SchedulePage() {
                   </div>
                 ))}
 
-                {/* Event blocks */}
-                {filteredEvents.map((ev, idx) => {
-                  const start = new Date(ev.start)
-                  const end = new Date(ev.end)
-                  const dayIdx = Math.floor((start.getTime() - weekStart.getTime()) / (24 * 60 * 60 * 1000))
-                  if (dayIdx < 0 || dayIdx >= 7) return null
+                <div className="absolute inset-y-0 left-[60px] right-0">
+                  {timelineLayouts.map((layout) => {
+                    const laneWidthPercent = dayWidthPercent / layout.laneCount
+                    const left = `calc(${layout.dayIdx * dayWidthPercent + layout.laneIndex * laneWidthPercent}% + 2px)`
+                    const width = `calc(${laneWidthPercent}% - 4px)`
 
-                  const startMinutes = start.getHours() * 60 + start.getMinutes()
-                  const durationMinutes = Math.max(15, (end.getTime() - start.getTime()) / 60000)
-                  const top = (startMinutes / 60) * 24
-                  const height = Math.max(16, (durationMinutes / 60) * 24)
-                  const left = `calc(60px + ${dayIdx} * ((100% - 60px) / 7) + 2px)`
-                  const width = `calc((100% - 60px) / 7 - 4px)`
-
-                  return (
-                    <Link
-                      key={`${ev.id}-${idx}`}
-                      href={`/schedule/${ev.id}`}
-                      className={`absolute rounded-md px-1.5 py-0.5 text-white text-[10px] font-medium truncate cursor-pointer hover:opacity-90 transition ${statusColor(ev.status, false)}`}
-                      style={{ top: `${top}px`, height: `${height}px`, left, width, zIndex: 10 }}
-                      title={`${ev.name} (${ev.username}) ${formatTime(ev.start)}–${formatTime(ev.end)}`}
-                    >
-                      {ev.name}
-                    </Link>
-                  )
-                })}
+                    return (
+                      <Link
+                        key={`${layout.event.id}-${layout.event.occurrence_start}`}
+                        href={`/schedule/${layout.event.id}?occurrence=${encodeURIComponent(layout.event.occurrence_start)}`}
+                        className={`absolute rounded-md px-1.5 py-0.5 text-white text-[10px] font-medium cursor-pointer hover:opacity-90 transition ${statusColor(layout.event.status, false)}`}
+                        style={{ top: `${layout.top}px`, height: `${layout.height}px`, left, width, zIndex: 10 }}
+                        title={`${layout.event.name} (${layout.event.username}) ${formatTime(layout.event.start)}–${formatTime(layout.event.end)}`}
+                      >
+                        <span className="block overflow-hidden leading-tight">{layout.event.name}</span>
+                      </Link>
+                    )
+                  })}
+                </div>
 
                 {!loading && filteredEvents.length === 0 && (
                   <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-text-muted">
@@ -401,7 +491,12 @@ export default function SchedulePage() {
                               {s.paused ? <Play size={14} /> : <Pause size={14} />}
                             </button>
                             <button
-                              onClick={() => setDeleteConfirm(s.id)}
+                              onClick={() => setDeleteConfirm({
+                                id: s.id,
+                                name: s.name,
+                                occurrence: s.scheduled_at,
+                                recurrenceType: s.recurrence_type,
+                              })}
                               className="p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/30 transition text-red-500"
                               title="Delete"
                             >
@@ -427,13 +522,22 @@ export default function SchedulePage() {
               <AlertTriangle size={20} />
               <h3 className="font-semibold">Delete Schedule</h3>
             </div>
-            <p className="text-sm text-text-muted mb-4">This will permanently delete the schedule and all its execution history. This cannot be undone.</p>
-            <div className="flex justify-end gap-2">
+            {deleteConfirm.recurrenceType === "once" ? (
+              <p className="text-sm text-text-muted mb-4">This will permanently delete &ldquo;{deleteConfirm.name}&rdquo;.</p>
+            ) : (
+              <p className="text-sm text-text-muted mb-4">Choose whether to delete only the selected occurrence or the future series. Past executions are preserved.</p>
+            )}
+            <div className="flex flex-wrap justify-end gap-2">
               <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 text-sm rounded-lg border border-app-border text-text-muted hover:bg-app-surface-alt transition">
                 Cancel
               </button>
-              <button onClick={() => handleDelete(deleteConfirm)} className="px-4 py-2 text-sm rounded-lg bg-red-500 text-white hover:bg-red-600 transition">
-                Delete
+              {deleteConfirm.recurrenceType !== "once" && (
+                <button onClick={() => handleDelete(deleteConfirm, "single")} className="px-4 py-2 text-sm rounded-lg border border-red-300 text-red-600 hover:bg-red-50 transition">
+                  Delete This Occurrence
+                </button>
+              )}
+              <button onClick={() => handleDelete(deleteConfirm, deleteConfirm.recurrenceType === "once" ? "single" : "future")} className="px-4 py-2 text-sm rounded-lg bg-red-500 text-white hover:bg-red-600 transition">
+                {deleteConfirm.recurrenceType === "once" ? "Delete Schedule" : "Delete Future Series"}
               </button>
             </div>
           </div>

@@ -12,7 +12,7 @@ import {
 } from "@/components/AuthConfigSection"
 import {
   createSchedule, checkScheduleConflict, listTemplates,
-  type AuthInput, type CreateSchedulePayload, type Template,
+  isApiError, type AuthInput, type CreateSchedulePayload, type ScheduleConflict, type Template,
 } from "@/lib/api"
 import { motion } from "framer-motion"
 import { staggerContainer, revealItem } from "@/lib/motion-variants"
@@ -96,6 +96,11 @@ function parsePayloadTargetKiBFromEnv(value?: string) {
   const bytes = Number(value || 0)
   if (!Number.isFinite(bytes) || bytes <= 0) return 0
   return bytes / 1024
+}
+
+function formatScheduleConflict(conflict?: ScheduleConflict | null) {
+  if (!conflict) return null
+  return `Conflicts with "${conflict.schedule_name || "running test"}" (${new Date(conflict.start).toLocaleString()} – ${new Date(conflict.end).toLocaleString()})`
 }
 
 function hydrateBuilderRuntimeFromConfig(configContent?: string) {
@@ -336,12 +341,7 @@ function NewSchedulePage() {
       setConflictChecking(true)
       try {
         const res = await checkScheduleConflict(iso, effectiveDuration + 30, undefined, token)
-        if (res.conflict && res.conflicting_schedule) {
-          const c = res.conflicting_schedule
-          setConflict(`Conflicts with "${c.schedule_name || "running test"}" (${new Date(c.start).toLocaleString()} – ${new Date(c.end).toLocaleString()})`)
-        } else {
-          setConflict(null)
-        }
+        setConflict(res.conflict ? formatScheduleConflict(res.conflicting_schedule) : null)
       } catch {
         setConflict(null)
       }
@@ -471,8 +471,19 @@ function NewSchedulePage() {
 
       await createSchedule(payload, token)
       router.push("/schedule")
-    } catch (err: any) {
-      setToast({ type: "error", message: err?.message || "Failed to create schedule" })
+    } catch (err: unknown) {
+      if (isApiError(err) && err.status === 409) {
+        const apiConflict = (err.data as { conflict?: ScheduleConflict } | undefined)?.conflict
+        const formatted = formatScheduleConflict(apiConflict)
+        if (formatted) {
+          setConflict(formatted)
+          setToast({ type: "error", message: "Resolve the schedule conflict first" })
+        } else {
+          setToast({ type: "error", message: err.message || "Failed to create schedule" })
+        }
+      } else {
+        setToast({ type: "error", message: err instanceof Error ? err.message : "Failed to create schedule" })
+      }
     }
     setLoading(false)
   }

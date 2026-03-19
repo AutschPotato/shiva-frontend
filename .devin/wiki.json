@@ -1,0 +1,12 @@
+{
+  "repo_notes": [
+    {
+      "content": "This repository is the active source-of-truth for the Shiva Frontend split repo. Documentation should prioritize the Next.js App Router structure in app/, shared UI in components/, backend proxy routes in app/api/, client integration code in lib/, and the Playwright end-to-end coverage in tests/.",
+      "author": "Codex"
+    },
+    {
+      "content": "Important workflows to document are authentication and session handling, load test creation and execution views, schedule creation and conflict handling, results exploration, templates and worker dashboards, and how the frontend communicates with the Shiva Platform backend during local Docker-based development.",
+      "author": "Codex"
+    }
+  ]
+}

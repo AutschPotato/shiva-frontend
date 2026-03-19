@@ -4,6 +4,27 @@ const PROXY_PREFIX = "/api/backend"
 
 // --- Low-level helpers ---------------------------------------------------
 
+export class ApiError extends Error {
+  status: number
+  data?: unknown
+
+  constructor(message: string, status: number, data?: unknown) {
+    super(message)
+    this.name = "ApiError"
+    this.status = status
+    this.data = data
+  }
+}
+
+export function isApiError(error: unknown): error is ApiError {
+  return Boolean(
+    error
+    && typeof error === "object"
+    && "status" in error
+    && typeof (error as { status?: unknown }).status === "number",
+  )
+}
+
 function bearerHeader(token?: string | null): Record<string, string> {
   if (!token || token === "undefined" || token === "null") return {}
   return { Authorization: `Bearer ${token}` }
@@ -42,8 +63,26 @@ async function jsonFetch<T = any>(
   })
 
   if (!res.ok) {
-    const body = await res.text().catch(() => "")
-    throw new Error(body || `Request failed (${res.status})`)
+    const rawBody = await res.text().catch(() => "")
+    let data: unknown
+    let message = rawBody || `Request failed (${res.status})`
+
+    if (rawBody) {
+      try {
+        data = JSON.parse(rawBody)
+      } catch {
+        data = undefined
+      }
+    }
+
+    if (data && typeof data === "object") {
+      const maybeMessage = (data as { error?: unknown; message?: unknown }).error ?? (data as { message?: unknown }).message
+      if (typeof maybeMessage === "string" && maybeMessage.trim()) {
+        message = maybeMessage
+      }
+    }
+
+    throw new ApiError(message, res.status, data)
   }
   return res.json() as Promise<T>
 }
@@ -384,6 +423,7 @@ export interface ScheduledTest {
   recurrence_type: string
   recurrence_rule?: string
   recurrence_end?: string
+  skipped_occurrences?: string[]
   status: string
   paused: boolean
   user_id: number
@@ -411,10 +451,16 @@ export interface CalendarEvent {
   project_name: string
   start: string
   end: string
+  occurrence_start: string
   status: string
   recurrence_type: string
   username: string
   user_id: number
+}
+
+export interface DeleteScheduleOptions {
+  occurrence?: string
+  scope?: "single" | "future"
 }
 
 export interface ScheduleConflict {
@@ -470,8 +516,11 @@ export function updateSchedule(id: string, payload: Partial<CreateSchedulePayloa
   return put(schedulePath(id), payload, token)
 }
 
-export function deleteSchedule(id: string, token?: string) {
-  return del(schedulePath(id), token)
+export function deleteSchedule(id: string, token?: string, options?: DeleteScheduleOptions) {
+  return del(withQuery(schedulePath(id), {
+    occurrence: options?.occurrence,
+    scope: options?.scope,
+  }), token)
 }
 
 export function pauseSchedule(id: string, token?: string) {

@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { useSession } from "@/context/SessionContext"
 import {
@@ -18,6 +18,7 @@ import {
 export default function ScheduleDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user, token, initialized: ready } = useSession()
   const [schedule, setSchedule] = useState<ScheduledTest | null>(null)
   const [executions, setExecutions] = useState<ScheduleExecution[]>([])
@@ -26,6 +27,7 @@ export default function ScheduleDetailPage() {
   const [deleteConfirm, setDeleteConfirm] = useState(false)
 
   const id = params.id as string
+  const occurrenceParam = searchParams.get("occurrence")
 
   useEffect(() => {
     if (ready && !user) router.replace("/login")
@@ -63,10 +65,17 @@ export default function ScheduleDetailPage() {
 
   const canManage = schedule && (user?.role === "admin" || String(schedule.user_id) === user?.id)
 
-  const handleDelete = async () => {
+  const selectedOccurrence = occurrenceParam || schedule?.scheduled_at || ""
+  const selectedOccurrenceDate = selectedOccurrence ? new Date(selectedOccurrence) : null
+  const selectedOccurrenceIsPast = selectedOccurrenceDate ? selectedOccurrenceDate.getTime() < (Date.now() - 60_000) : false
+
+  const handleDelete = async (scope: "single" | "future") => {
     if (!token || !id) return
     try {
-      await deleteSchedule(id, token)
+      await deleteSchedule(id, token, {
+        occurrence: selectedOccurrence || undefined,
+        scope,
+      })
       router.push("/schedule")
     } catch {
       setToast({ type: "error", message: "Failed to delete schedule" })
@@ -136,7 +145,11 @@ export default function ScheduleDetailPage() {
             <button onClick={handlePauseToggle} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border border-app-border text-text-muted hover:bg-app-surface-alt transition">
               {schedule.paused ? <><Play size={14} /> Resume</> : <><Pause size={14} /> Pause</>}
             </button>
-            <button onClick={() => setDeleteConfirm(true)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border border-red-300 dark:border-red-800 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition">
+            <button
+              onClick={() => setDeleteConfirm(true)}
+              disabled={selectedOccurrenceIsPast}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border border-red-300 dark:border-red-800 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition disabled:opacity-50 disabled:hover:bg-transparent"
+            >
               <Trash2 size={14} /> Delete
             </button>
           </div>
@@ -159,6 +172,10 @@ export default function ScheduleDetailPage() {
           <div>
             <span className="text-text-muted text-xs uppercase font-semibold">Status</span>
             <div className="mt-1">{statusBadge(schedule.status, schedule.paused)}</div>
+          </div>
+          <div>
+            <span className="text-text-muted text-xs uppercase font-semibold">Selected Occurrence</span>
+            <div className="mt-1 text-text-primary font-medium">{fmtDate(selectedOccurrence)}</div>
           </div>
           <div>
             <span className="text-text-muted text-xs uppercase font-semibold">Next Run</span>
@@ -265,13 +282,22 @@ export default function ScheduleDetailPage() {
               <AlertTriangle size={20} />
               <h3 className="font-semibold">Delete Schedule</h3>
             </div>
-            <p className="text-sm text-text-muted mb-4">This will permanently delete &ldquo;{schedule.name}&rdquo; and all its execution history.</p>
-            <div className="flex justify-end gap-2">
+            {schedule.recurrence_type === "once" ? (
+              <p className="text-sm text-text-muted mb-4">This will permanently delete &ldquo;{schedule.name}&rdquo;.</p>
+            ) : (
+              <p className="text-sm text-text-muted mb-4">Choose whether to delete only the selected occurrence or to end the future series from this occurrence onward. Past executions are preserved.</p>
+            )}
+            <div className="flex flex-wrap justify-end gap-2">
               <button onClick={() => setDeleteConfirm(false)} className="px-4 py-2 text-sm rounded-lg border border-app-border text-text-muted hover:bg-app-surface-alt transition">
                 Cancel
               </button>
-              <button onClick={handleDelete} className="px-4 py-2 text-sm rounded-lg bg-red-500 text-white hover:bg-red-600 transition">
-                Delete
+              {schedule.recurrence_type !== "once" && (
+                <button onClick={() => handleDelete("single")} className="px-4 py-2 text-sm rounded-lg border border-red-300 text-red-600 hover:bg-red-50 transition">
+                  Delete This Occurrence
+                </button>
+              )}
+              <button onClick={() => handleDelete(schedule.recurrence_type === "once" ? "single" : "future")} className="px-4 py-2 text-sm rounded-lg bg-red-500 text-white hover:bg-red-600 transition">
+                {schedule.recurrence_type === "once" ? "Delete Schedule" : "Delete Future Series"}
               </button>
             </div>
           </div>
