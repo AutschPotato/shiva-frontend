@@ -254,8 +254,58 @@ interface ResultData {
   payload_content?: string
   http_method?: string
   content_type?: string
+  executor?: string
+  stages?: { duration: string; target: number }[]
+  vus?: number
+  duration?: string
+  rate?: number
+  time_unit?: string
+  pre_allocated_vus?: number
+  max_vus?: number
+  sleep_seconds?: number
   summary_content?: string
   auth_summary_content?: string
+}
+
+function buildRerunCloneData(data: ResultData): Record<string, unknown> {
+  const cloneData: Record<string, unknown> = {}
+  const hasBuilderConfig =
+    Boolean(data.url || data.executor || data.stages?.length) ||
+    typeof data.vus === "number" ||
+    typeof data.rate === "number" ||
+    typeof data.pre_allocated_vus === "number" ||
+    typeof data.max_vus === "number" ||
+    typeof data.sleep_seconds === "number" ||
+    typeof data.duration === "string"
+
+  if (!hasBuilderConfig && data.script_content) cloneData.script_content = data.script_content
+  if (data.config_content) cloneData.config_content = data.config_content
+  if (data.url) cloneData.url = data.url
+  if (data.executor) cloneData.executor = data.executor
+  if (data.http_method || data.metadata?.payload?.http_method) {
+    cloneData.http_method = data.metadata?.payload?.http_method ?? data.http_method
+  }
+  if (data.content_type || data.metadata?.payload?.content_type) {
+    cloneData.content_type = data.metadata?.payload?.content_type ?? data.content_type
+  }
+  if (data.payload_source_json) cloneData.payload_json = data.payload_source_json
+  if (data.metadata?.payload?.payload_target_kib) {
+    cloneData.payload_target_kib = Math.round(data.metadata.payload.payload_target_kib)
+  }
+  if (Array.isArray(data.stages) && data.stages.length > 0) {
+    cloneData.stages = data.stages
+  } else if (Array.isArray(data.metadata?.stages) && data.metadata.stages.length > 0) {
+    cloneData.stages = data.metadata.stages
+  }
+  if (typeof data.vus === "number") cloneData.vus = data.vus
+  if (typeof data.duration === "string" && data.duration) cloneData.duration = data.duration
+  if (typeof data.rate === "number") cloneData.rate = data.rate
+  if (typeof data.time_unit === "string" && data.time_unit) cloneData.time_unit = data.time_unit
+  if (typeof data.pre_allocated_vus === "number") cloneData.pre_allocated_vus = data.pre_allocated_vus
+  if (typeof data.max_vus === "number") cloneData.max_vus = data.max_vus
+  if (typeof data.sleep_seconds === "number") cloneData.sleep_seconds = data.sleep_seconds
+
+  return cloneData
 }
 
 function qualityFlag(metrics: MetricsV2 | undefined, key: string): MetricQualityFlag | undefined {
@@ -1061,16 +1111,7 @@ export default function ResultDetail() {
             </button>
             <button
               onClick={() => {
-                const cloneData: Record<string, unknown> = {}
-                if (data.script_content) cloneData.script_content = data.script_content
-                if (data.config_content) cloneData.config_content = data.config_content
-                if (data.url) cloneData.url = data.url
-                if (data.metadata?.payload?.http_method || data.http_method) cloneData.http_method = data.metadata?.payload?.http_method ?? data.http_method
-                if (data.metadata?.payload?.content_type || data.content_type) cloneData.content_type = data.metadata?.payload?.content_type ?? data.content_type
-                if (data.payload_source_json) cloneData.payload_json = data.payload_source_json
-                if (data.metadata?.payload?.payload_target_kib) cloneData.payload_target_kib = Math.round(data.metadata.payload.payload_target_kib)
-                if (data.metadata?.stages) cloneData.stages = data.metadata.stages
-                localStorage.setItem("k6-clone-test", JSON.stringify(cloneData))
+                localStorage.setItem("k6-clone-test", JSON.stringify(buildRerunCloneData(data)))
                 router.push("/load-test?clone=true")
               }}
               className="px-4 py-2 text-sm font-medium rounded-md bg-accent-primary text-white hover:bg-pink-700 transition disabled:opacity-50"
