@@ -15,7 +15,7 @@ function escapeRegExp(value) {
 }
 
 function locatorForLabeledField(page, label, tagName) {
-  const exactLabel = new RegExp(`^\\s*${escapeRegExp(label)}\\s*$`)
+  const exactLabel = label instanceof RegExp ? label : new RegExp(`^\\s*${escapeRegExp(label)}\\s*$`)
   return page
     .locator("label")
     .filter({ hasText: exactLabel })
@@ -26,6 +26,12 @@ async function fillInputByLabel(page, label, value) {
   const input = locatorForLabeledField(page, label, "input")
   await expect(input).toBeVisible()
   await input.fill(String(value))
+}
+
+async function expectInputValueByLabel(page, label, expectedValue) {
+  const input = locatorForLabeledField(page, label, "input")
+  await expect(input).toBeVisible()
+  await expect(input).toHaveValue(String(expectedValue))
 }
 
 async function selectByLabel(page, label, value) {
@@ -160,6 +166,43 @@ async function startNativeArrivalRateRun(page, projectName, options = {}) {
   await waitForResultPage(page, 60000)
 }
 
+async function startConstantVusRun(page, projectName, options = {}) {
+  const settings = {
+    targetUrl: "http://target-lb:8090/health",
+    httpMethod: "GET",
+    vus: 18,
+    duration: "45s",
+    sleepSeconds: 1.5,
+    ...options,
+  }
+
+  await login(page)
+  await openBuilder(page, projectName, settings.targetUrl)
+  const authToggle = page.getByRole("checkbox", { name: "Enable" })
+  if (await authToggle.isChecked()) {
+    await authToggle.uncheck()
+  }
+  await selectByLabel(page, "HTTP Method", settings.httpMethod)
+  await page.getByRole("button", { name: /^Constant Load/i }).click()
+  await fillInputByLabel(page, "Virtual Users", settings.vus)
+  await fillInputByLabel(page, "Duration", settings.duration)
+  await fillInputByLabel(page, /Think-Time/i, settings.sleepSeconds)
+  await clickRunLoadTest(page)
+  await waitForRunProgress(page)
+  await openCompletedResult(page, projectName, 240000)
+  await waitForResultPage(page, 60000)
+}
+
+async function openRerunFormFromResult(page) {
+  await page.getByRole("button", { name: "Re-Run Test" }).click()
+  await page.waitForURL(/\/load-test\?clone=true$/i, { timeout: 30000 })
+  await expect(page.getByRole("heading", { name: "Run Test" })).toBeVisible()
+}
+
+async function expectScenarioSelected(page, label) {
+  await expect(page.getByRole("button", { name: label })).toHaveClass(/border-accent-primary/)
+}
+
 async function getStatValue(page, label) {
   const stat = page.locator("div.bg-app-surface").filter({
     has: page.getByText(label, { exact: true }).first(),
@@ -194,11 +237,15 @@ async function expectAuthAbort(page, expectedCodePattern) {
 
 module.exports = {
   expectAuthAbort,
+  expectInputValueByLabel,
+  expectScenarioSelected,
   getStatValue,
   login,
+  openRerunFormFromResult,
   openBuilderRun,
   parseLocalizedNumber,
   startAuthRun,
+  startConstantVusRun,
   startNativeArrivalRateRun,
   waitForResultPage,
 }

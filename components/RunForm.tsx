@@ -11,7 +11,7 @@ import {
   validateAuthInput,
 } from "@/components/AuthConfigSection"
 import { FormSubSection, FormSubSectionContent, FormSubSectionTitle } from "@/components/FormSubSection"
-import { listTemplates, createTemplate, type AuthInput, type Template, type TemplatePayload } from "@/lib/api"
+import { listTemplates, createTemplate, type AuthConfig, type AuthInput, type Template, type TemplatePayload } from "@/lib/api"
 
 const API_BASE = "/api/backend"
 
@@ -458,15 +458,74 @@ function parseConfigEnv(configContent?: string): Record<string, string> {
   }
 }
 
+function parseConfigJson(configContent?: string): Record<string, unknown> | null {
+  if (!configContent?.trim()) return null
+  try {
+    const parsed = JSON.parse(configContent)
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null
+    return parsed as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
+
 function parsePayloadTargetKiBFromEnv(value?: string) {
   const bytes = Number(value || 0)
   if (!Number.isFinite(bytes) || bytes <= 0) return 0
   return bytes / 1024
 }
 
-function hydrateBuilderRuntimeFromConfig(configContent?: string) {
+function parseFiniteNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return undefined
+}
+
+function parseStageList(value: unknown): Stage[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const stages = value
+    .filter((stage): stage is Record<string, unknown> => !!stage && typeof stage === "object" && !Array.isArray(stage))
+    .map((stage) => ({
+      duration: typeof stage.duration === "string" ? stage.duration : "",
+      target: parseFiniteNumber(stage.target) ?? 0,
+    }))
+  return stages.length > 0 ? stages : undefined
+}
+
+type BuilderRuntimeHydration = {
+  url: string
+  executor?: ExecutorType
+  httpMethod?: HttpMethod
+  contentType: string
+  payloadJson: string
+  payloadTargetKiB: number
+  auth: AuthInput
+  stages?: Stage[]
+  vus?: number
+  duration?: string
+  rate?: number
+  timeUnit?: string
+  preAllocatedVUs?: number
+  maxVUs?: number
+  sleepSeconds?: number
+  manualEnvVars: EnvVarEntry[]
+}
+
+function hydrateBuilderRuntimeFromConfig(configContent?: string): BuilderRuntimeHydration {
+  const parsed = parseConfigJson(configContent)
   const env = parseConfigEnv(configContent)
   const auth = createDefaultAuthInput()
+  const scenarioBlock = parsed?.scenarios
+  const defaultScenario = scenarioBlock && typeof scenarioBlock === "object" && !Array.isArray(scenarioBlock)
+    ? (scenarioBlock as Record<string, unknown>).default
+    : undefined
+  const scenario = defaultScenario && typeof defaultScenario === "object" && !Array.isArray(defaultScenario)
+    ? defaultScenario as Record<string, unknown>
+    : undefined
+  const executor = resolveTemplateExecutor(typeof scenario?.executor === "string" ? scenario.executor : undefined)
 
   if ((env.AUTH_ENABLED || "").toLowerCase() === "true") {
     auth.auth_enabled = true
@@ -480,6 +539,7 @@ function hydrateBuilderRuntimeFromConfig(configContent?: string) {
 
   return {
     url: env.TARGET_URL || "",
+    executor,
     httpMethod: VALID_HTTP_METHODS.includes((env.HTTP_METHOD || "").toUpperCase() as HttpMethod)
       ? (env.HTTP_METHOD.toUpperCase() as HttpMethod)
       : undefined,
@@ -487,10 +547,17 @@ function hydrateBuilderRuntimeFromConfig(configContent?: string) {
     payloadJson: env.PAYLOAD_SOURCE_JSON || "",
     payloadTargetKiB: parsePayloadTargetKiBFromEnv(env.PAYLOAD_TARGET_BYTES),
     auth,
+    stages: parseStageList(scenario?.stages),
+    vus: parseFiniteNumber(scenario?.vus),
+    duration: typeof scenario?.duration === "string" ? scenario.duration : undefined,
+    rate: parseFiniteNumber(scenario?.rate ?? scenario?.startRate),
+    timeUnit: typeof scenario?.timeUnit === "string" ? scenario.timeUnit : undefined,
+    preAllocatedVUs: parseFiniteNumber(scenario?.preAllocatedVUs),
+    maxVUs: parseFiniteNumber(scenario?.maxVUs),
     manualEnvVars: Object.entries(env)
       .filter(([key]) => !BUILDER_CONFIG_ENV_KEYS.has(key))
       .map(([key, value]) => ({ key, value })),
-  }
+  } satisfies BuilderRuntimeHydration
 }
 
 function mergeAuthInputs(primary: AuthInput | undefined, fallback: AuthInput): AuthInput {
@@ -730,6 +797,13 @@ type CloneDraft = {
   configPreview?: string
   url?: string
   executor?: ExecutorType
+  vus?: number
+  duration?: string
+  rate?: number
+  timeUnit?: string
+  preAllocatedVUs?: number
+  maxVUs?: number
+  sleepSeconds?: number
   httpMethod?: HttpMethod
   contentType?: string
   payloadJson?: string
@@ -738,36 +812,58 @@ type CloneDraft = {
   stages?: Stage[]
 }
 
+function hasBuilderCloneFields(clone: Record<string, unknown>): boolean {
+  return Boolean(
+    clone.url ||
+      clone.stages ||
+      clone.executor ||
+      typeof clone.vus === "number" ||
+      typeof clone.duration === "string" ||
+      typeof clone.rate === "number" ||
+      typeof clone.time_unit === "string" ||
+      typeof clone.pre_allocated_vus === "number" ||
+      typeof clone.max_vus === "number" ||
+      typeof clone.sleep_seconds === "number",
+  )
+}
+
 function parseCloneDraft(raw: string | null): CloneDraft | null {
   if (!raw) return null
 
   try {
-    const clone = JSON.parse(raw)
-    if (clone.script_content) {
+    const clone = JSON.parse(raw) as Record<string, unknown>
+    if (hasBuilderCloneFields(clone)) {
+      return {
+        mode: "builder",
+        url: typeof clone.url === "string" ? clone.url : undefined,
+        executor: typeof clone.executor === "string" ? resolveTemplateExecutor(clone.executor) : undefined,
+        vus: typeof clone.vus === "number" ? clone.vus : undefined,
+        duration: typeof clone.duration === "string" ? clone.duration : undefined,
+        rate: typeof clone.rate === "number" ? clone.rate : undefined,
+        timeUnit: typeof clone.time_unit === "string" ? clone.time_unit : undefined,
+        preAllocatedVUs: typeof clone.pre_allocated_vus === "number" ? clone.pre_allocated_vus : undefined,
+        maxVUs: typeof clone.max_vus === "number" ? clone.max_vus : undefined,
+        sleepSeconds: typeof clone.sleep_seconds === "number" ? clone.sleep_seconds : undefined,
+        httpMethod: VALID_HTTP_METHODS.includes(clone.http_method as HttpMethod) ? clone.http_method as HttpMethod : undefined,
+        contentType: typeof clone.content_type === "string" ? clone.content_type : undefined,
+        payloadJson: typeof clone.payload_json === "string" ? clone.payload_json : undefined,
+        payloadTargetKiB: typeof clone.payload_target_kib === "number" ? clone.payload_target_kib : undefined,
+        auth: clone.auth && typeof clone.auth === "object" ? hydrateAuthInput(clone.auth as AuthConfig) : undefined,
+        stages: Array.isArray(clone.stages) ? clone.stages as Stage[] : undefined,
+        configPreview: typeof clone.config_content === "string" ? clone.config_content : undefined,
+      }
+    }
+    if (typeof clone.script_content === "string" && clone.script_content) {
       return {
         mode: "upload",
         scriptPreview: clone.script_content,
-        configPreview: clone.config_content,
-      }
-    }
-    if (clone.url || clone.stages) {
-      return {
-        mode: "builder",
-        url: clone.url,
-        executor: resolveTemplateExecutor(clone.executor),
-        httpMethod: VALID_HTTP_METHODS.includes(clone.http_method as HttpMethod) ? clone.http_method as HttpMethod : undefined,
-        contentType: clone.content_type,
-        payloadJson: clone.payload_json,
-        payloadTargetKiB: typeof clone.payload_target_kib === "number" ? clone.payload_target_kib : undefined,
-        auth: clone.auth ? hydrateAuthInput(clone.auth) : undefined,
-        stages: clone.stages,
-        configPreview: clone.config_content,
+        configPreview: typeof clone.config_content === "string" ? clone.config_content : undefined,
       }
     }
     if (clone.config_content) {
       return {
         mode: clone.mode === "upload" ? "upload" : undefined,
-        configPreview: clone.config_content,
+        configPreview: typeof clone.config_content === "string" ? clone.config_content : undefined,
       }
     }
   } catch {
@@ -930,6 +1026,48 @@ export default function RunForm() {
     [token],
   )
 
+  const applyBuilderPrefill = useCallback((args: {
+    url?: string
+    executor?: ExecutorType
+    httpMethod?: HttpMethod
+    contentType?: string
+    payloadJson?: string
+    payloadTargetKiB?: number
+    auth?: AuthInput
+    stages?: Stage[]
+    vus?: number
+    duration?: string
+    rate?: number
+    timeUnit?: string
+    preAllocatedVUs?: number
+    maxVUs?: number
+    sleepSeconds?: number
+    configPreview?: string
+    manualEnvVars?: EnvVarEntry[]
+  }) => {
+    setMode("builder")
+    if (args.url) setUrl(args.url)
+    if (args.executor) setExecutor(args.executor)
+    if (args.httpMethod) setHttpMethod(args.httpMethod)
+    if (args.contentType !== undefined) setContentType(args.contentType || "application/json")
+    if (args.payloadJson !== undefined) setPayloadJson(args.payloadJson)
+    if (args.payloadTargetKiB !== undefined) setPayloadTargetKiB(args.payloadTargetKiB)
+    if (args.auth) setAuthConfig(args.auth)
+    if (args.stages && args.stages.length > 0) setStages(args.stages)
+    if (args.vus !== undefined) setVus(args.vus)
+    if (args.duration) setDuration(args.duration)
+    if (args.rate !== undefined) setRate(args.rate)
+    if (args.timeUnit) setTimeUnit(args.timeUnit)
+    if (args.preAllocatedVUs !== undefined) setPreAllocatedVUs(args.preAllocatedVUs)
+    if (args.maxVUs !== undefined) setMaxVUs(args.maxVUs)
+    if (args.sleepSeconds !== undefined) setSleepSeconds(args.sleepSeconds)
+    if (args.configPreview) {
+      setConfigPreview(args.configPreview)
+      setConfigJsonValid(true)
+    }
+    if (args.manualEnvVars) setEnvVars(args.manualEnvVars)
+  }, [])
+
   // Load clone data from Results "Re-Run" button
   const [cloneLoaded, setCloneLoaded] = useState(false)
   useEffect(() => {
@@ -942,21 +1080,36 @@ export default function RunForm() {
     const clone = parseCloneDraft(raw)
     if (!clone) return
     const configHydration = hydrateBuilderRuntimeFromConfig(clone.configPreview)
-    if (clone.mode) setMode(clone.mode)
-    if (clone.scriptPreview) setScriptPreview(clone.scriptPreview)
-    if (clone.url || configHydration.url) setUrl(clone.url || configHydration.url)
-    if (clone.executor) setExecutor(clone.executor)
-    if (clone.httpMethod || configHydration.httpMethod) setHttpMethod(clone.httpMethod || configHydration.httpMethod || "POST")
-    if (clone.contentType || configHydration.contentType) setContentType(clone.contentType || configHydration.contentType || "application/json")
-    if (clone.payloadJson || configHydration.payloadJson) setPayloadJson(clone.payloadJson || configHydration.payloadJson || "")
-    if (clone.payloadTargetKiB || configHydration.payloadTargetKiB) setPayloadTargetKiB(clone.payloadTargetKiB || configHydration.payloadTargetKiB)
-    if (clone.auth || configHydration.auth.auth_enabled) {
-      setAuthConfig(mergeAuthInputs(clone.auth, configHydration.auth))
+    if (clone.mode === "upload") {
+      setMode("upload")
+      if (clone.scriptPreview) setScriptPreview(clone.scriptPreview)
+      if (clone.configPreview) {
+        setConfigPreview(clone.configPreview)
+        setConfigJsonValid(true)
+      }
+      return
     }
-    if (clone.stages && clone.stages.length > 0) setStages(clone.stages)
-    if (clone.configPreview) setConfigPreview(clone.configPreview)
-    setEnvVars(configHydration.manualEnvVars)
-  }, [searchParams, cloneLoaded])
+
+    applyBuilderPrefill({
+      url: clone.url || configHydration.url,
+      executor: clone.executor ?? configHydration.executor,
+      httpMethod: clone.httpMethod ?? configHydration.httpMethod ?? "POST",
+      contentType: clone.contentType ?? configHydration.contentType ?? "application/json",
+      payloadJson: clone.payloadJson ?? configHydration.payloadJson ?? "",
+      payloadTargetKiB: clone.payloadTargetKiB ?? configHydration.payloadTargetKiB,
+      auth: clone.auth || configHydration.auth.auth_enabled ? mergeAuthInputs(clone.auth, configHydration.auth) : undefined,
+      stages: clone.stages && clone.stages.length > 0 ? clone.stages : configHydration.stages,
+      vus: clone.vus ?? configHydration.vus,
+      duration: clone.duration ?? configHydration.duration,
+      rate: clone.rate ?? configHydration.rate,
+      timeUnit: clone.timeUnit ?? configHydration.timeUnit,
+      preAllocatedVUs: clone.preAllocatedVUs ?? configHydration.preAllocatedVUs,
+      maxVUs: clone.maxVUs ?? configHydration.maxVUs,
+      sleepSeconds: clone.sleepSeconds ?? configHydration.sleepSeconds,
+      configPreview: clone.configPreview,
+      manualEnvVars: configHydration.manualEnvVars,
+    })
+  }, [applyBuilderPrefill, searchParams, cloneLoaded])
 
   // Load available templates
   useEffect(() => {
@@ -1012,22 +1165,27 @@ export default function RunForm() {
       setEnvVars(resolveTemplateEnvVars(t))
     } else {
       const configHydration = hydrateBuilderRuntimeFromConfig(t.config_content)
-      setMode("builder")
-      if (t.url || configHydration.url) setUrl(t.url || configHydration.url)
-      if (t.stages && t.stages.length > 0) setStages(t.stages)
       const templateExecutor = resolveTemplateExecutor(t.executor)
-      if (templateExecutor) setExecutor(templateExecutor)
-      setHttpMethod(
-        VALID_HTTP_METHODS.includes((t.http_method ?? "POST") as HttpMethod)
+      applyBuilderPrefill({
+        url: t.url || configHydration.url,
+        executor: templateExecutor ?? configHydration.executor,
+        httpMethod: VALID_HTTP_METHODS.includes((t.http_method ?? "POST") as HttpMethod)
           ? (t.http_method as HttpMethod)
           : (configHydration.httpMethod || "POST"),
-      )
-      setContentType(t.content_type || configHydration.contentType || "application/json")
-      setPayloadJson(t.payload_json || configHydration.payloadJson || "")
-      setPayloadTargetKiB(t.payload_target_kib || configHydration.payloadTargetKiB || 0)
-      setAuthConfig(mergeAuthInputs(hydrateAuthInput(t.auth), configHydration.auth))
-      if (t.config_content) setConfigPreview(t.config_content)
-      setEnvVars(configHydration.manualEnvVars)
+        contentType: t.content_type ?? configHydration.contentType ?? "application/json",
+        payloadJson: t.payload_json ?? configHydration.payloadJson ?? "",
+        payloadTargetKiB: t.payload_target_kib ?? configHydration.payloadTargetKiB,
+        auth: mergeAuthInputs(hydrateAuthInput(t.auth), configHydration.auth),
+        stages: t.stages && t.stages.length > 0 ? t.stages : configHydration.stages,
+        vus: configHydration.vus,
+        duration: configHydration.duration,
+        rate: configHydration.rate,
+        timeUnit: configHydration.timeUnit,
+        preAllocatedVUs: configHydration.preAllocatedVUs,
+        maxVUs: configHydration.maxVUs,
+        configPreview: t.config_content,
+        manualEnvVars: configHydration.manualEnvVars,
+      })
     }
     setShowTemplateDropdown(false)
     setToast({ type: "success", message: `Template "${t.name}" loaded` })
