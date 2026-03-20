@@ -14,6 +14,16 @@ Runtime requirements:
 - Node.js 24.x (see `package.json` engines)
 - pnpm 9.x
 
+## License and Legal Notice
+
+This repository is proprietary and is not released under an open source license.
+
+- Copyright (c) 2026 AutschPotato. All rights reserved.
+- No permission is granted to use, copy, modify, merge, publish, distribute, sublicense, sell, or create derivative works from this source code without prior written permission from the copyright holder.
+- Access to the repository, source visibility, or the ability to open pull requests does not grant any separate license or usage right.
+
+See [LICENSE.md](./LICENSE.md) for the repository-wide notice.
+
 ## Quick Start For Windows
 
 Prerequisites:
