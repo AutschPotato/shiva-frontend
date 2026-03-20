@@ -208,6 +208,100 @@ pnpm validate:separate-deployment:writes
 - Latency trend chart
 - Throughput chart
 
+## Web UI Tour
+
+The screenshot set below documents every user-facing route in the current frontend App Router.
+
+- Screenshots are generated from a local Docker deployment against the active split repositories.
+- Use `admin / changeme` for the default local login.
+- Refresh the image set with `pnpm docs:screenshots` after starting the platform on `http://localhost:8080` and the frontend on `http://localhost:3001`.
+- The reset password screenshot uses a demo token in the URL, and the worker dashboard screenshots use stable sample dashboard metadata so the documentation does not depend on a live worker-side dashboard session.
+
+<details>
+<summary>Public routes</summary>
+
+### Login
+The sign-in page is the entry point for administrators and maintainers.
+
+![Login screen](./docs/screenshots/webui/public/login.png)
+
+### Forgot Password
+The recovery flow lets a user request a reset link by username or email.
+
+![Forgot password screen](./docs/screenshots/webui/public/forgot-password.png)
+
+### Reset Password
+The reset form consumes the single-use token and lets the user choose a new password.
+
+![Reset password screen](./docs/screenshots/webui/public/reset-password.png)
+
+</details>
+
+<details>
+<summary>Authenticated workspace</summary>
+
+### Overview
+The landing dashboard summarizes controller status, worker availability, recent runs, and endpoint inventory.
+
+![Overview page](./docs/screenshots/webui/workspace/overview.png)
+
+### Run Test
+The load test builder configures the target, execution model, payload, and runtime options for a new run.
+
+![Run test page](./docs/screenshots/webui/workspace/run-test.png)
+
+### Schedules
+The schedule workspace combines search, calendar visibility, and lifecycle controls for planned executions.
+
+![Schedules page](./docs/screenshots/webui/workspace/schedules.png)
+
+### New Schedule
+The schedule creation form supports recurrence planning, builder settings, and loading from saved templates.
+
+![New schedule page](./docs/screenshots/webui/workspace/schedule-create.png)
+
+### Schedule Detail
+The detail view shows the selected occurrence, recurrence metadata, execution history, and management actions.
+
+![Schedule detail page](./docs/screenshots/webui/workspace/schedule-detail.png)
+
+### Templates
+The templates workspace curates reusable builder presets and administrative system-template actions.
+
+![Templates page](./docs/screenshots/webui/workspace/templates.png)
+
+### Results
+The results index supports searching, paging, and quick access to completed runs.
+
+![Results page](./docs/screenshots/webui/workspace/results.png)
+
+### Result Detail
+The result detail page exposes executive metrics, charts, warnings, and rerun or template actions.
+
+![Result detail page](./docs/screenshots/webui/workspace/result-detail.png)
+
+### Worker Dashboards
+The worker dashboard launcher gives administrators access to per-worker live k6 dashboards.
+
+![Worker dashboards page](./docs/screenshots/webui/workspace/worker-dashboards.png)
+
+### Worker Dashboard Detail
+The live worker wrapper keeps the embedded dashboard isolated behind the authenticated frontend shell.
+
+![Worker dashboard detail page](./docs/screenshots/webui/workspace/worker-dashboard-detail.png)
+
+### Users
+The admin-only users page combines account creation, user search, activity metrics, and password reset actions.
+
+![Users page](./docs/screenshots/webui/workspace/users.png)
+
+### Profile
+The profile page shows personal activity metrics and the password/security controls for the signed-in user.
+
+![Profile page](./docs/screenshots/webui/workspace/profile.png)
+
+</details>
+
 ## Data Flow
 
 Frontend -> Go Backend `POST /api/run` (distributed to k6 workers)

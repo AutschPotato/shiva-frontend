@@ -9,6 +9,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 80",
+    "docs:screenshots": "node scripts/capture-webui-screenshots.mjs",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "validate:separate-deployment": "node scripts/validate-separate-deployment.mjs",
     "validate:separate-deployment:writes": "node scripts/validate-separate-deployment-write-flows.mjs",
