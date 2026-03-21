@@ -178,10 +178,18 @@ interface TestMetadata {
   ended_at: string
   duration_s: number
   worker_count: number
+  artifact_collection?: ArtifactCollectionMetadata
   stages?: { duration: string; target: number }[]
   script_url?: string
   payload?: PayloadMetadata
   auth?: AuthMetadata
+}
+
+interface ArtifactCollectionMetadata {
+  status?: string
+  expected_worker_count?: number
+  received_worker_summary_count?: number
+  missing_workers?: string[]
 }
 
 interface PayloadMetadata {
@@ -315,6 +323,7 @@ function qualityFlag(metrics: MetricsV2 | undefined, key: string): MetricQuality
 function qualityBadge(flag?: MetricQualityFlag): string {
   if (!flag) return "status-badge status-badge--neutral"
   if (flag.status === "exact") return "status-badge status-badge--success"
+  if (flag.status === "partial") return "status-badge status-badge--warning"
   if (flag.status === "approximate") return "status-badge status-badge--warning"
   if (flag.status === "legacy") return "status-badge status-badge--info"
   return "status-badge status-badge--neutral"
@@ -995,7 +1004,14 @@ export default function ResultDetail() {
   const httpBusinessQuality = qualityFlag(m2, "http_business")
   const latencyQuality = qualityFlag(m2, "latency_primary")
   const workerQuality = qualityFlag(m2, "workers")
+  const workerArtifactQuality = qualityFlag(m2, "worker_artifacts")
   const checksQuality = qualityFlag(m2, "checks")
+  const artifactCollection = meta?.artifact_collection
+  const showArtifactCollectionWarning = Boolean(
+    artifactCollection
+    && artifactCollection.status
+    && artifactCollection.status !== "complete",
+  )
 
   const lat = m2
     ? {
@@ -1231,6 +1247,35 @@ export default function ResultDetail() {
             </div>
           )}
         </Section>
+      )}
+
+      {showArtifactCollectionWarning && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 text-amber-950">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="status-badge status-badge--warning">
+              {artifactCollection?.status === "partial" ? "partial worker artifacts" : "worker artifacts unavailable"}
+            </span>
+            {workerArtifactQuality && (
+              <span className={qualityBadge(workerArtifactQuality)}>
+                worker_artifacts: {workerArtifactQuality.status}
+              </span>
+            )}
+          </div>
+          <div className="mt-2 text-sm font-semibold">
+            Worker summary artifacts are incomplete for this result.
+          </div>
+          <div className="mt-1 text-sm">
+            Received {artifactCollection?.received_worker_summary_count ?? 0} of {artifactCollection?.expected_worker_count ?? meta?.worker_count ?? 0} expected worker summaries.
+          </div>
+          {artifactCollection?.missing_workers && artifactCollection.missing_workers.length > 0 && (
+            <div className="mt-2 text-sm">
+              Missing workers: <span className="font-mono">{artifactCollection.missing_workers.join(", ")}</span>
+            </div>
+          )}
+          {workerArtifactQuality?.approximation_reason && (
+            <div className="mt-2 text-xs text-amber-800">{workerArtifactQuality.approximation_reason}</div>
+          )}
+        </div>
       )}
 
       {m2 || m ? (
@@ -1501,9 +1546,10 @@ export default function ResultDetail() {
 
           {(m2?.workers?.length ?? 0) > 0 && (
             <Section title="Worker Breakdown">
-              {workerQuality && (
+              {(workerQuality || workerArtifactQuality) && (
                 <div className="mb-4 flex flex-wrap gap-2 text-xs">
-                  <QualityPill label="workers" flag={workerQuality} />
+                  {workerQuality && <QualityPill label="workers" flag={workerQuality} />}
+                  {workerArtifactQuality && <QualityPill label="worker_artifacts" flag={workerArtifactQuality} />}
                 </div>
               )}
               {workerQuality?.approximation_reason && (
