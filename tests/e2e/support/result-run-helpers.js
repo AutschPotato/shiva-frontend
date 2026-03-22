@@ -118,24 +118,29 @@ async function openBuilderRun(page, projectName) {
   await page.getByRole("textbox", { name: "loadtest-client" }).fill("dummy-client")
   await page.getByRole("textbox", { name: "Enter client secret" }).fill("dummy-secret")
   await page.getByRole("button", { name: "Constant Load Fixed number of" }).click()
-  await page.getByRole("spinbutton").nth(3).fill("0")
+  await fillInputByLabel(page, "Virtual Users", 10)
+  await fillInputByLabel(page, "Duration", "30s")
+  await fillInputByLabel(page, /Think-Time/i, 0)
 }
 
 async function startAuthRun(page, projectName, tokenUrl) {
+  const runName = `${projectName}-${Date.now()}`
   await login(page)
-  await openBuilderRun(page, projectName)
+  await openBuilderRun(page, runName)
   await page.getByRole("textbox", { name: "http://target-lb:8090/api/" }).fill(tokenUrl)
   await clickRunLoadTest(page)
   await waitForRunProgress(page)
   try {
     await waitForResultPage(page, 30000)
   } catch {
-    await openCompletedResult(page, projectName, 240000)
+    await openCompletedResult(page, runName, 240000)
     await waitForResultPage(page, 60000)
   }
+  return runName
 }
 
 async function startNativeArrivalRateRun(page, projectName, options = {}) {
+  const runName = `${projectName}-${Date.now()}`
   const settings = {
     targetUrl: "http://target-lb:8090/health",
     httpMethod: "GET",
@@ -148,7 +153,7 @@ async function startNativeArrivalRateRun(page, projectName, options = {}) {
   }
 
   await login(page)
-  await openBuilder(page, projectName, settings.targetUrl)
+  await openBuilder(page, runName, settings.targetUrl)
   const authToggle = page.getByRole("checkbox", { name: "Enable" })
   if (await authToggle.isChecked()) {
     await authToggle.uncheck()
@@ -162,11 +167,13 @@ async function startNativeArrivalRateRun(page, projectName, options = {}) {
   await fillInputByLabel(page, "Max VUs", settings.maxVUs)
   await clickRunLoadTest(page)
   await waitForRunProgress(page)
-  await openCompletedResult(page, projectName, 240000)
+  await openCompletedResult(page, runName, 240000)
   await waitForResultPage(page, 60000)
+  return runName
 }
 
 async function startConstantVusRun(page, projectName, options = {}) {
+  const runName = `${projectName}-${Date.now()}`
   const settings = {
     targetUrl: "http://target-lb:8090/health",
     httpMethod: "GET",
@@ -177,7 +184,7 @@ async function startConstantVusRun(page, projectName, options = {}) {
   }
 
   await login(page)
-  await openBuilder(page, projectName, settings.targetUrl)
+  await openBuilder(page, runName, settings.targetUrl)
   const authToggle = page.getByRole("checkbox", { name: "Enable" })
   if (await authToggle.isChecked()) {
     await authToggle.uncheck()
@@ -189,8 +196,20 @@ async function startConstantVusRun(page, projectName, options = {}) {
   await fillInputByLabel(page, /Think-Time/i, settings.sleepSeconds)
   await clickRunLoadTest(page)
   await waitForRunProgress(page)
-  await openCompletedResult(page, projectName, 240000)
+  await openCompletedResult(page, runName, 240000)
   await waitForResultPage(page, 60000)
+  return runName
+}
+
+async function startBusinessFailureRun(page, projectName, options = {}) {
+  return startConstantVusRun(page, projectName, {
+    targetUrl: "http://target-lb:8090/test/http/404",
+    httpMethod: "GET",
+    vus: 4,
+    duration: "20s",
+    sleepSeconds: 0,
+    ...options,
+  })
 }
 
 async function openRerunFormFromResult(page) {
@@ -214,8 +233,38 @@ async function getStatValue(page, label) {
   return (await value.innerText()).trim()
 }
 
+async function waitForAuthAbortArtifacts(page, timeoutMs = 120000) {
+  const deadline = Date.now() + timeoutMs
+
+  while (Date.now() < deadline) {
+    const abortBannerVisible = await page
+      .getByText(/^Authentication aborted the test run\.?$/)
+      .first()
+      .isVisible()
+      .catch(() => false)
+
+    const tokenRequests = parseLocalizedNumber(await getStatValue(page, "Token Requests"))
+    const responseCodes = await getStatValue(page, "Response Codes")
+    const hasTokenData = Number.isFinite(tokenRequests) && tokenRequests > 0
+    const hasResponseCodes = !/^(-|—|N\/A)$/i.test(responseCodes)
+
+    if (abortBannerVisible && hasTokenData && hasResponseCodes) {
+      return
+    }
+
+    const bodyText = await page.locator("body").innerText()
+    if (!/worker_artifacts:\s*partial/i.test(bodyText)) {
+      return
+    }
+
+    await page.waitForTimeout(3000)
+    await page.reload({ waitUntil: "domcontentloaded" })
+  }
+}
+
 async function expectAuthAbort(page, expectedCodePattern) {
   await expect(page.getByText("Authentication", { exact: true }).first()).toBeVisible()
+  await waitForAuthAbortArtifacts(page)
   await expect(page.getByText(/^Authentication aborted the test run\.?$/).first()).toBeVisible()
 
   const tokenRequests = parseLocalizedNumber(await getStatValue(page, "Token Requests"))
@@ -245,6 +294,7 @@ module.exports = {
   openBuilderRun,
   parseLocalizedNumber,
   startAuthRun,
+  startBusinessFailureRun,
   startConstantVusRun,
   startNativeArrivalRateRun,
   waitForResultPage,
