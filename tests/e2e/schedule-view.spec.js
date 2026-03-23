@@ -16,6 +16,23 @@ async function seedSession(page) {
   }, session)
 }
 
+function buildOverlappingScheduleTimes() {
+  const now = new Date()
+  const startA = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 19, 15, 0, 0)
+  const endA = new Date(startA.getTime() + 10 * 60 * 1000)
+  const startB = new Date(startA.getTime() + 5 * 60 * 1000)
+  const endB = new Date(startB.getTime() + 10 * 60 * 1000)
+
+  return {
+    scheduledAtA: startA.toISOString(),
+    scheduledAtB: startB.toISOString(),
+    startA: startA.toISOString(),
+    endA: endA.toISOString(),
+    startB: startB.toISOString(),
+    endB: endB.toISOString(),
+  }
+}
+
 test("schedule view exposes heading, search, and view toggle", async ({ page }) => {
   await seedSession(page)
 
@@ -50,6 +67,7 @@ test("schedule view exposes heading, search, and view toggle", async ({ page }) 
 
 test("timeline places overlapping schedule entries in separate lanes", async ({ page }) => {
   await seedSession(page)
+  const overlap = buildOverlappingScheduleTimes()
 
   await page.route("**/api/backend/api/schedules", async (route) => {
     await route.fulfill({
@@ -64,7 +82,7 @@ test("timeline places overlapping schedule entries in separate lanes", async ({ 
             url: "http://target",
             mode: "builder",
             executor: "ramping-vus",
-            scheduled_at: "2026-03-19T19:15:00Z",
+            scheduled_at: overlap.scheduledAtA,
             estimated_duration_s: 300,
             timezone: "UTC",
             recurrence_type: "once",
@@ -82,7 +100,7 @@ test("timeline places overlapping schedule entries in separate lanes", async ({ 
             url: "http://target",
             mode: "builder",
             executor: "ramping-vus",
-            scheduled_at: "2026-03-19T19:27:00Z",
+            scheduled_at: overlap.scheduledAtB,
             estimated_duration_s: 300,
             timezone: "UTC",
             recurrence_type: "once",
@@ -108,9 +126,9 @@ test("timeline places overlapping schedule entries in separate lanes", async ({ 
             id: "sched-a",
             name: "Overlap A",
             project_name: "Series A",
-            start: "2026-03-19T19:15:00Z",
-            end: "2026-03-19T19:20:00Z",
-            occurrence_start: "2026-03-19T19:15:00Z",
+            start: overlap.startA,
+            end: overlap.endA,
+            occurrence_start: overlap.startA,
             status: "scheduled",
             recurrence_type: "once",
             username: "admin",
@@ -120,9 +138,9 @@ test("timeline places overlapping schedule entries in separate lanes", async ({ 
             id: "sched-b",
             name: "Overlap B",
             project_name: "Series B",
-            start: "2026-03-19T19:27:00Z",
-            end: "2026-03-19T19:32:00Z",
-            occurrence_start: "2026-03-19T19:27:00Z",
+            start: overlap.startB,
+            end: overlap.endB,
+            occurrence_start: overlap.startB,
             status: "scheduled",
             recurrence_type: "once",
             username: "admin",

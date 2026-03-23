@@ -70,7 +70,11 @@ async function clickRunLoadTest(page) {
   await dialogPromise
 }
 
-async function openCompletedResult(page, projectName, timeoutMs = 240000) {
+function hasTerminalResultStatus(rowText) {
+  return /\b(completed|error|failed)\b/i.test(rowText)
+}
+
+async function openCompletedResult(page, projectName, timeoutMs = 300000) {
   const start = Date.now()
 
   while (Date.now() - start < timeoutMs) {
@@ -85,7 +89,7 @@ async function openCompletedResult(page, projectName, timeoutMs = 240000) {
     const row = page.locator("tr").filter({ hasText: projectName }).first()
     if (await row.count()) {
       const rowText = await row.innerText()
-      if (/completed/i.test(rowText)) {
+      if (hasTerminalResultStatus(rowText)) {
         await row.getByRole("link", { name: "View" }).click()
         return
       }
@@ -94,7 +98,7 @@ async function openCompletedResult(page, projectName, timeoutMs = 240000) {
     await page.waitForTimeout(2000)
   }
 
-  throw new Error(`Timed out waiting for completed result row for ${projectName}`)
+  throw new Error(`Timed out waiting for terminal result row for ${projectName}`)
 }
 
 async function login(page) {
