@@ -948,19 +948,29 @@ export default function ResultDetail() {
     if (!data || !token) return
     setTemplateSaving(true)
     try {
+      const hasBuilderConfig =
+        Boolean(data.url || data.executor || data.stages?.length || data.metadata?.stages?.length) ||
+        typeof data.vus === "number" ||
+        typeof data.rate === "number" ||
+        typeof data.pre_allocated_vus === "number" ||
+        typeof data.max_vus === "number" ||
+        typeof data.sleep_seconds === "number" ||
+        typeof data.duration === "string"
+      const templateMode: "builder" | "upload" = hasBuilderConfig ? "builder" : "upload"
+
       const payload: TemplatePayload = {
         name: data.project_name,
         description: `Created from test result ${data.id.slice(0, 8)}`,
-        mode: data.script_content ? "upload" : "builder",
-        url: data.url || undefined,
-        stages: data.metadata?.stages,
+        mode: templateMode,
+        url: templateMode === "builder" ? data.url || undefined : undefined,
+        stages: templateMode === "builder" ? (data.stages ?? data.metadata?.stages) : undefined,
         http_method: data.metadata?.payload?.http_method ?? data.http_method ?? undefined,
         content_type: data.metadata?.payload?.content_type ?? data.content_type ?? undefined,
         payload_json: data.payload_source_json || undefined,
         payload_target_kib: data.metadata?.payload?.payload_target_kib
           ? Math.round(data.metadata.payload.payload_target_kib)
           : undefined,
-        script_content: data.script_content || undefined,
+        script_content: templateMode === "upload" ? data.script_content || undefined : undefined,
         config_content: data.config_content || undefined,
       }
       await createTemplate(payload, token)
