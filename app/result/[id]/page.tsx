@@ -950,6 +950,9 @@ export default function ResultDetail() {
     try {
       const hasBuilderConfig =
         Boolean(data.url || data.executor || data.stages?.length || data.metadata?.stages?.length) ||
+        Boolean(data.http_method || data.metadata?.payload?.http_method) ||
+        Boolean(data.content_type || data.metadata?.payload?.content_type) ||
+        Boolean(data.payload_source_json || data.metadata?.payload?.payload_target_kib) ||
         typeof data.vus === "number" ||
         typeof data.rate === "number" ||
         typeof data.pre_allocated_vus === "number" ||
