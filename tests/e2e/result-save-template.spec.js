@@ -29,7 +29,8 @@ test("result detail saves builder run as builder template", async ({ page }) => 
   expect(createTemplateResponse.status()).toBe(201)
   await expect(page.getByText("Template saved successfully")).toBeVisible()
 
-  await page.getByRole("link", { name: "Templates" }).click()
-  await expect(page.getByRole("heading", { name: "Templates" })).toBeVisible()
+  await page.getByRole("link", { name: "Templates", exact: true }).click()
+  await expect(page).toHaveURL(/\/templates$/)
+  await expect(page.getByRole("heading", { name: "Templates", exact: true })).toBeVisible()
   await expect(page.getByText(runName, { exact: false }).first()).toBeVisible()
 })
