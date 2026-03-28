@@ -19,6 +19,9 @@ async function seedSession(page) {
 test("recurring schedule detail offers occurrence and future-series delete options", async ({ page }) => {
   await seedSession(page)
 
+  const occurrenceIso = "2099-03-24T09:00:00Z"
+  const recurrenceEndIso = "2099-03-30T09:00:00Z"
+
   let deleteRequestUrl = ""
 
   await page.route("**/api/backend/api/schedules/calendar*", async (route) => {
@@ -48,10 +51,10 @@ test("recurring schedule detail offers occurrence and future-series delete optio
             schedule_id: "sched-recurring",
             load_test_id: "result-1",
             status: "completed",
-            scheduled_at: "2026-03-22T09:00:00Z",
-            started_at: "2026-03-22T09:00:00Z",
-            ended_at: "2026-03-22T09:05:00Z",
-            created_at: "2026-03-22T09:05:00Z",
+            scheduled_at: "2099-03-22T09:00:00Z",
+            started_at: "2099-03-22T09:00:00Z",
+            ended_at: "2099-03-22T09:05:00Z",
+            created_at: "2099-03-22T09:05:00Z",
           },
         ],
       }),
@@ -79,22 +82,22 @@ test("recurring schedule detail offers occurrence and future-series delete optio
         url: "http://target",
         mode: "builder",
         executor: "ramping-vus",
-        scheduled_at: "2026-03-24T09:00:00Z",
+        scheduled_at: occurrenceIso,
         estimated_duration_s: 1800,
         timezone: "UTC",
         recurrence_type: "daily",
-        recurrence_end: "2026-03-30T09:00:00Z",
+        recurrence_end: recurrenceEndIso,
         status: "scheduled",
         paused: false,
         user_id: 1,
         username: "admin",
-        created_at: "2026-03-20T09:00:00Z",
-        updated_at: "2026-03-20T09:00:00Z",
+        created_at: "2099-03-20T09:00:00Z",
+        updated_at: "2099-03-20T09:00:00Z",
       }),
     })
   })
 
-  await page.goto("/schedule/sched-recurring?occurrence=2026-03-24T09:00:00Z")
+  await page.goto(`/schedule/sched-recurring?occurrence=${occurrenceIso}`)
 
   await expect(page.getByText("Selected Occurrence")).toBeVisible()
 
@@ -107,5 +110,5 @@ test("recurring schedule detail offers occurrence and future-series delete optio
   await page.waitForURL(/\/schedule$/)
 
   expect(deleteRequestUrl).toContain("scope=future")
-  expect(deleteRequestUrl).toContain("occurrence=2026-03-24T09%3A00%3A00Z")
+  expect(deleteRequestUrl).toContain(`occurrence=${encodeURIComponent(occurrenceIso)}`)
 })
