@@ -26,6 +26,7 @@ type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
 
 const VALID_HTTP_METHODS: HttpMethod[] = ["GET", "POST", "PUT", "PATCH", "DELETE"]
 const BUILDER_CONFIG_ENV_KEYS = new Set([
+  "K6_WEB_DASHBOARD",
   "TARGET_URL",
   "HTTP_METHOD",
   "CONTENT_TYPE",
@@ -67,6 +68,7 @@ function buildBuilderEnvContract(args: {
   auth: AuthInput
 }) {
   const envBlock: Record<string, string> = {
+    K6_WEB_DASHBOARD: "false",
     HTTP_METHOD: args.httpMethod,
     CONTENT_TYPE: args.contentType || "application/json",
     PAYLOAD_SOURCE_JSON: methodAllowsPayload(args.httpMethod) ? args.payloadJson : "",

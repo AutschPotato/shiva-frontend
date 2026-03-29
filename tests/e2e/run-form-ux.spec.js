@@ -18,6 +18,29 @@ test("run form focuses missing required fields from bottom submit", async ({ pag
   await expect(page.locator("#target-url-input")).toBeFocused()
 })
 
+test("run form exposes dashboard default and allows explicit manual override", async ({ page }) => {
+  await login(page)
+  await page.getByRole("link", { name: "Run Test", exact: true }).click()
+  await expect(page.getByRole("heading", { name: "Run Test", exact: true })).toBeVisible()
+
+  const dashboardGeneratedKey = page.getByText("K6_WEB_DASHBOARD", { exact: true })
+  await expect(dashboardGeneratedKey).toBeVisible()
+  await expect(
+    page
+      .locator("div")
+      .filter({ hasText: "K6_WEB_DASHBOARD" })
+      .filter({ hasText: "false" })
+      .first(),
+  ).toBeVisible()
+
+  await page.getByRole("button", { name: "+ Add Variable", exact: true }).click()
+  await page.getByPlaceholder("KEY").fill("K6_WEB_DASHBOARD")
+  await page.getByPlaceholder("value").fill("true")
+
+  await expect(page.getByText("overrides generated key")).toBeVisible()
+  await expect(page.locator('input[value="true"]')).toBeVisible()
+})
+
 test("run form scrolls to top when startup modal appears", async ({ page }) => {
   let runStarted = false
 
