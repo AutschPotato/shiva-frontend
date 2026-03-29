@@ -966,6 +966,39 @@ export default function RunForm() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const envSyncRef = useRef<"ui" | "editor" | null>(null)
   const payloadInputRef = useRef<HTMLInputElement | null>(null)
+  const projectNameInputRef = useRef<HTMLInputElement | null>(null)
+  const targetUrlInputRef = useRef<HTMLInputElement | null>(null)
+  const formRootRef = useRef<HTMLDivElement | null>(null)
+
+  const scrollToFormTop = useCallback((behavior: ScrollBehavior = "smooth") => {
+    const root = formRootRef.current
+    if (root) {
+      root.scrollIntoView({ behavior, block: "start" })
+      let parent = root.parentElement
+      while (parent) {
+        const style = window.getComputedStyle(parent)
+        const isScrollable =
+          (style.overflowY === "auto" || style.overflowY === "scroll") &&
+          parent.scrollHeight > parent.clientHeight
+        if (isScrollable) {
+          parent.scrollTo({ top: 0, behavior })
+          break
+        }
+        parent = parent.parentElement
+      }
+    }
+    window.scrollTo({ top: 0, behavior })
+  }, [])
+
+  useEffect(() => {
+    if (toast?.type !== "error") return
+    scrollToFormTop("smooth")
+  }, [toast, scrollToFormTop])
+
+  useEffect(() => {
+    if (!showModal) return
+    scrollToFormTop("auto")
+  }, [showModal, scrollToFormTop])
 
   // Live config preview for builder mode based on current executor + params
   const builderConfigPreview = useMemo(() => buildBuilderConfigPreview({
@@ -1301,6 +1334,21 @@ export default function RunForm() {
       configPreview,
     })
     setErrors(newErrors)
+    if (Object.keys(newErrors).length > 0) {
+      requestAnimationFrame(() => {
+        if (newErrors.projectName && projectNameInputRef.current) {
+          projectNameInputRef.current.focus({ preventScroll: true })
+          projectNameInputRef.current.scrollIntoView({ behavior: "smooth", block: "center" })
+          return
+        }
+        if (newErrors.url && targetUrlInputRef.current) {
+          targetUrlInputRef.current.focus({ preventScroll: true })
+          targetUrlInputRef.current.scrollIntoView({ behavior: "smooth", block: "center" })
+          return
+        }
+        scrollToFormTop("smooth")
+      })
+    }
     return Object.keys(newErrors).length === 0
   }
 
@@ -1540,6 +1588,7 @@ export default function RunForm() {
     setLoading(true)
     setLogs([])
     setShowModal(true)
+    scrollToFormTop("smooth")
     setProgress(0)
     setPaused(false)
     setControllable(false) // will be set from backend response
@@ -1648,7 +1697,7 @@ export default function RunForm() {
   }
 
   return (
-    <div className="space-y-6 relative">
+    <div ref={formRootRef} className="space-y-6 relative">
 
       {/* TOAST */}
       {toast && (
@@ -1702,6 +1751,8 @@ export default function RunForm() {
           Test Run Name
         </label>
         <input
+          id="project-name-input"
+          ref={projectNameInputRef}
           value={projectName}
           onChange={(e) => setProjectName(e.target.value)}
           placeholder="Checkout API smoke test"
@@ -1736,6 +1787,8 @@ export default function RunForm() {
                     Target URL
                   </label>
                   <input
+                    id="target-url-input"
+                    ref={targetUrlInputRef}
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
                     placeholder="http://target-lb:8090"
