@@ -516,6 +516,18 @@ type BuilderRuntimeHydration = {
   manualEnvVars: EnvVarEntry[]
 }
 
+function extractManualBuilderEnvOverrides(
+  env: Record<string, string>,
+  generatedEnv: Record<string, string>,
+): EnvVarEntry[] {
+  return Object.entries(env)
+    .filter(([key, value]) => {
+      if (!BUILDER_CONFIG_ENV_KEYS.has(key)) return true
+      return generatedEnv[key] !== value
+    })
+    .map(([key, value]) => ({ key, value }))
+}
+
 function hydrateBuilderRuntimeFromConfig(configContent?: string): BuilderRuntimeHydration {
   const parsed = parseConfigJson(configContent)
   const env = parseConfigEnv(configContent)
@@ -539,7 +551,7 @@ function hydrateBuilderRuntimeFromConfig(configContent?: string): BuilderRuntime
     auth.auth_refresh_skew_seconds = Math.max(1, Number(env.AUTH_REFRESH_SKEW_SECONDS || auth.auth_refresh_skew_seconds) || auth.auth_refresh_skew_seconds)
   }
 
-  return {
+  const hydrationBase = {
     url: env.TARGET_URL || "",
     executor,
     httpMethod: VALID_HTTP_METHODS.includes((env.HTTP_METHOD || "").toUpperCase() as HttpMethod)
@@ -556,9 +568,20 @@ function hydrateBuilderRuntimeFromConfig(configContent?: string): BuilderRuntime
     timeUnit: typeof scenario?.timeUnit === "string" ? scenario.timeUnit : undefined,
     preAllocatedVUs: parseFiniteNumber(scenario?.preAllocatedVUs),
     maxVUs: parseFiniteNumber(scenario?.maxVUs),
-    manualEnvVars: Object.entries(env)
-      .filter(([key]) => !BUILDER_CONFIG_ENV_KEYS.has(key))
-      .map(([key, value]) => ({ key, value })),
+  }
+
+  const generatedEnv = buildBuilderEnvContract({
+    url: hydrationBase.url,
+    httpMethod: hydrationBase.httpMethod ?? "POST",
+    contentType: hydrationBase.contentType || "application/json",
+    payloadJson: hydrationBase.payloadJson || "",
+    payloadTargetKiB: hydrationBase.payloadTargetKiB || 0,
+    auth,
+  })
+
+  return {
+    ...hydrationBase,
+    manualEnvVars: extractManualBuilderEnvOverrides(env, generatedEnv),
   } satisfies BuilderRuntimeHydration
 }
 
