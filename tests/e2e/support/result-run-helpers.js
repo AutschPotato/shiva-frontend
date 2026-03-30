@@ -184,6 +184,7 @@ async function startConstantVusRun(page, projectName, options = {}) {
     vus: 18,
     duration: "45s",
     sleepSeconds: 1.5,
+    envOverrides: {},
     ...options,
   }
 
@@ -198,6 +199,12 @@ async function startConstantVusRun(page, projectName, options = {}) {
   await fillInputByLabel(page, "Virtual Users", settings.vus)
   await fillInputByLabel(page, "Duration", settings.duration)
   await fillInputByLabel(page, /Think-Time/i, settings.sleepSeconds)
+  for (const [key, value] of Object.entries(settings.envOverrides || {})) {
+    await page.getByRole("button", { name: "+ Add Variable", exact: true }).click()
+    const row = page.locator("input[placeholder='KEY']").last().locator("xpath=ancestor::div[contains(@class,'space-y-2')]")
+    await row.locator("input[placeholder='KEY']").fill(String(key))
+    await row.locator("input[placeholder='value']").fill(String(value))
+  }
   await clickRunLoadTest(page)
   await waitForRunProgress(page)
   await openCompletedResult(page, runName, 240000)
